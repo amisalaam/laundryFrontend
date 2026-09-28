@@ -40,26 +40,36 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import { api } from "@/lib/api";
 import { authenticate, can, getAccessibleBranches, getSession, logout, setSession, updateCurrentBranch } from "@/lib/auth";
-import { demoUsers, orderRows, STORAGE_KEYS, systemActivity } from "@/lib/mock-data";
 import {
+  createBranch,
+  createCustomer,
+  createItemGroup,
+  createOrder,
+  createPaymentReceipt,
+  createServiceItem,
+  createTimeSlot,
   getBranches,
   getCustomers,
   getItemGroups,
   getLaundries,
+  getOrder,
   getOrders,
   getPaymentReceipts,
   getServiceItems,
   getTimeSlots,
   saveBranches,
-  saveCustomers,
   saveItemGroups,
   saveLaundries,
   saveOrders,
-  savePaymentReceipts,
   saveServiceItems,
   saveTimeSlots,
-  seedPrototypeData,
+  updateBranch,
+  updateItemGroup,
+  updateOrder,
+  updateServiceItem,
+  updateTimeSlot,
 } from "@/lib/storage";
 
 const statusStyles = {
@@ -87,24 +97,22 @@ function formatMoney(value) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
-function calculatePaymentStatus(grandTotal, paidAmount) {
-  if (Number(paidAmount || 0) <= 0) return "Unpaid";
-  if (Number(paidAmount || 0) >= Number(grandTotal || 0)) return "Paid";
-  return "Partial";
-}
-
 function getBranchPath(pathname) {
   const parts = pathname.split("/").filter(Boolean);
   const branchIndex = parts.indexOf("branch");
   return branchIndex >= 0 ? parts[branchIndex + 1] : "";
 }
 
-let prototypeIdCounter = 0;
+let clientIdCounter = 0;
 
-function createPrototypeId(prefix) {
-  prototypeIdCounter += 1;
+function createClientId(prefix) {
+  clientIdCounter += 1;
   if (typeof crypto !== "undefined" && crypto.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
-  return `${prefix}-${prototypeIdCounter}`;
+  return `${prefix}-${clientIdCounter}`;
+}
+
+function getApiErrorMessage(error, fallback = "The request could not be completed.") {
+  return error?.message || fallback;
 }
 
 function classNames(...classes) {
@@ -228,72 +236,40 @@ function ConfirmModal({ title, body, confirmLabel = "Confirm", onCancel, onConfi
   );
 }
 
-function DemoCredentials({ users }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-      <p className="text-sm font-bold text-zinc-950">Demo credentials</p>
-      <div className="mt-3 space-y-2">
-        {users.map((user) => (
-          <div key={user.email} className="rounded-md bg-white p-3 text-xs text-zinc-600">
-            <p className="font-semibold text-zinc-900">{user.role}</p>
-            <p>{user.email}</p>
-            <p>{user.password}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function LoginScreen({ type }) {
   const router = useRouter();
   const isSuperAdmin = type === "super-admin";
-  const users = demoUsers.filter((user) => user.loginType === type);
-  const [email, setEmail] = useState(users[0]?.email || "");
-  const [password, setPassword] = useState(users[0]?.password || "");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     setIsLoading(true);
-    window.setTimeout(() => {
-      const user = authenticate(email, password, type);
-      if (!user) {
-        setIsLoading(false);
-        setError("Those credentials do not match a demo user.");
-        return;
-      }
+    try {
+      const user = await authenticate(email, password, type);
       setSession(user);
       if (isSuperAdmin) {
         router.push("/super-admin/dashboard");
         return;
       }
       router.push("/home");
-    }, 450);
+    } catch (error) {
+      setError(getApiErrorMessage(error, "Those credentials were not accepted."));
+      setIsLoading(false);
+    }
   }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#cffafe,transparent_34%),linear-gradient(135deg,#f8fafc,#eef2ff)] px-4 py-8">
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1fr_420px]">
-        <section className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-sm font-semibold text-cyan-700 shadow-sm">
-            <ShieldCheck size={16} />
-            LaundryOS 2026 prototype
-          </div>
-          <h1 className="mt-6 text-4xl font-black tracking-normal text-zinc-950 sm:text-6xl">
-            {isSuperAdmin ? "Platform control for every laundry network." : "Branch operations that stay clean under pressure."}
-          </h1>
-          <p className="mt-5 max-w-xl text-base leading-7 text-zinc-600">
-            Use the demo accounts to explore role-based navigation, branch assignment, localStorage persistence, and protected dashboard routes.
-          </p>
-        </section>
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[420px] items-center">
         <section className="rounded-lg border border-white/70 bg-white/90 p-6 shadow-xl shadow-cyan-950/10 backdrop-blur">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-zinc-950">{isSuperAdmin ? "Super Admin Login" : "Owner & Staff Login"}</h2>
-            <p className="mt-1 text-sm text-zinc-500">Prototype authentication runs entirely in your browser.</p>
+            <p className="mt-1 text-sm text-zinc-500">Sign in with your LaundryOS account.</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Field label="Email">
@@ -313,9 +289,6 @@ function LoginScreen({ type }) {
               Sign in
             </Button>
           </form>
-          <div className="mt-5">
-            <DemoCredentials users={users} />
-          </div>
           <Link href={isSuperAdmin ? "/login" : "/super-admin/login"} className="mt-5 inline-flex text-sm font-semibold text-cyan-700 hover:text-cyan-900">
             {isSuperAdmin ? "Go to owner and staff login" : "Go to super admin login"}
           </Link>
@@ -331,16 +304,21 @@ function useProtectedSession(expectedType) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    seedPrototypeData();
-    const savedSession = getSession();
-    if (!savedSession || savedSession.loginType !== expectedType) {
-      router.replace(expectedType === "super-admin" ? "/super-admin/login" : "/login");
-      return;
-    }
-    window.setTimeout(() => {
+    let isMounted = true;
+    async function loadSession() {
+      const savedSession = await getSession();
+      if (!isMounted) return;
+      if (!savedSession || savedSession.loginType !== expectedType) {
+        router.replace(expectedType === "super-admin" ? "/super-admin/login" : "/login");
+        return;
+      }
       setSessionState(savedSession);
       setIsReady(true);
-    }, 0);
+    }
+    loadSession();
+    return () => {
+      isMounted = false;
+    };
   }, [expectedType, router]);
 
   return { session, setSessionState, isReady };
@@ -351,7 +329,7 @@ function LoadingShell() {
     <main className="grid min-h-screen place-items-center bg-zinc-50">
       <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-5 py-4 text-sm font-semibold text-zinc-700 shadow-sm">
         <Loader2 className="animate-spin text-cyan-600" size={18} />
-        Loading prototype
+        Loading LaundryOS
       </div>
     </main>
   );
@@ -362,8 +340,8 @@ function ProfileDropdown({ session, branches = [] }) {
   const [isOpen, setIsOpen] = useState(false);
   const currentBranch = branches.find((branch) => branch.id === session?.currentBranchId);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     router.push(session?.loginType === "super-admin" ? "/super-admin/login" : "/login");
   }
 
@@ -461,10 +439,6 @@ function Sidebar({ links, isOpen, onClose }) {
           );
         })}
       </nav>
-      <div className="mt-auto rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
-        <p className="font-bold text-white">Prototype mode</p>
-        <p className="mt-1 leading-5">Data is stored in localStorage and can be reset from browser storage.</p>
-      </div>
     </div>
   );
   return (
@@ -484,7 +458,7 @@ function AppShell({ type, title, subtitle, children }) {
   const { session, setSessionState, isReady } = useProtectedSession(type);
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const branches = session?.loginType === "business" ? getAccessibleBranches(session) : [];
+  const [branches, setBranchesState] = useState([]);
   const isSettingsArea = type === "business" && pathname.includes("/settings");
   const links = type === "super-admin"
     ? [
@@ -509,6 +483,22 @@ function AppShell({ type, title, subtitle, children }) {
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/customers` : "/home", label: "Customers", icon: Users },
       ].filter((link) => link.type === "heading" || link.label !== "Create Branch" || can(session, "create_branch"));
 
+  useEffect(() => {
+    let isMounted = true;
+    async function loadBranches() {
+      if (!session || session.loginType !== "business") {
+        setBranchesState([]);
+        return;
+      }
+      const nextBranches = await getAccessibleBranches(session);
+      if (isMounted) setBranchesState(nextBranches);
+    }
+    loadBranches();
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
+
   if (!isReady) return <LoadingShell />;
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -524,17 +514,19 @@ function AppShell({ type, title, subtitle, children }) {
 export function HomeRedirect() {
   const router = useRouter();
   useEffect(() => {
-    seedPrototypeData();
-    const session = getSession();
-    if (!session) {
-      router.replace("/login");
-      return;
+    async function redirect() {
+      const session = await getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      if (session.loginType === "super-admin") {
+        router.replace("/super-admin/dashboard");
+        return;
+      }
+      router.replace("/home");
     }
-    if (session.loginType === "super-admin") {
-      router.replace("/super-admin/dashboard");
-      return;
-    }
-    router.replace("/home");
+    redirect();
   }, [router]);
   return <LoadingShell />;
 }
@@ -548,11 +540,27 @@ export function OwnerStaffLoginPage() {
 }
 
 export function SuperAdminDashboardPage() {
+  const [laundries, setLaundries] = useState([]);
+  const [branches, setBranchesState] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDashboard() {
+      const [nextLaundries, nextBranches] = await Promise.all([getLaundries(), getBranches()]);
+      if (isMounted) {
+        setLaundries(nextLaundries);
+        setBranchesState(nextBranches);
+      }
+    }
+    loadDashboard();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <AppShell type="super-admin" title="Super Admin Dashboard" subtitle="Platform-wide performance and account management">
       {() => {
-        const laundries = getLaundries();
-        const branches = getBranches();
         const activeStaff = branches.reduce((sum, branch) => sum + branch.staffCount, 0);
         const activeSubscriptions = laundries.filter((laundry) => laundry.subscription === "Active").length;
         return (
@@ -586,12 +594,7 @@ export function SuperAdminDashboardPage() {
               <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
                 <h2 className="text-lg font-bold text-zinc-950">Recent system activity</h2>
                 <div className="mt-5 space-y-4">
-                  {systemActivity.map((item) => (
-                    <div key={item} className="flex gap-3">
-                      <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-cyan-50 text-cyan-700"><CheckCircle2 size={15} /></span>
-                      <p className="text-sm leading-6 text-zinc-600">{item}</p>
-                    </div>
-                  ))}
+                  <EmptyState title="No recent activity" body="Activity appears here as backend audit events are added." />
                 </div>
               </section>
             </div>
@@ -652,8 +655,15 @@ export function LaundriesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => setLaundries(getLaundries()), 0);
+    let isMounted = true;
+    async function loadLaundries() {
+      const nextLaundries = await getLaundries();
+      if (isMounted) setLaundries(nextLaundries);
+    }
+    loadLaundries();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -663,15 +673,18 @@ export function LaundriesPage() {
       .sort((first, second) => String(first[sortBy]).localeCompare(String(second[sortBy])));
   }, [laundries, query, sortBy, status]);
 
-  function toggleLaundry(laundryId) {
+  async function toggleLaundry(laundryId) {
     const nextLaundries = laundries.map((laundry) => laundry.id === laundryId ? { ...laundry, status: laundry.status === "Active" ? "Inactive" : "Active" } : laundry);
-    saveLaundries(nextLaundries);
+    const target = nextLaundries.find((laundry) => laundry.id === laundryId);
+    await api.patch(`/laundries/${laundryId}/`, { status: target.status });
+    await saveLaundries(nextLaundries);
     setLaundries(nextLaundries);
   }
 
-  function deleteLaundry() {
+  async function deleteLaundry() {
     const nextLaundries = laundries.filter((laundry) => laundry.id !== deleteTarget.id);
-    saveLaundries(nextLaundries);
+    await api.del(`/laundries/${deleteTarget.id}/`);
+    await saveLaundries(nextLaundries);
     setLaundries(nextLaundries);
     setDeleteTarget(null);
   }
@@ -755,7 +768,7 @@ export function LaundriesPage() {
             ))}
           </div>
           {deleteTarget ? (
-            <ConfirmModal title="Delete laundry business?" body={`This will remove ${deleteTarget.name} from localStorage prototype data.`} confirmLabel="Delete" onCancel={() => setDeleteTarget(null)} onConfirm={deleteLaundry} />
+            <ConfirmModal title="Delete laundry business?" body={`This will deactivate ${deleteTarget.name} and hide it from normal operations.`} confirmLabel="Delete" onCancel={() => setDeleteTarget(null)} onConfirm={deleteLaundry} />
           ) : null}
         </div>
       )}
@@ -815,7 +828,7 @@ function ImagePicker({ label, value, onChange }) {
         </span>
         <span>
           <span className="block text-sm font-bold text-zinc-950">Upload image</span>
-          <span className="block text-xs text-zinc-500">Preview is stored as a local data URL.</span>
+          <span className="block text-xs text-zinc-500">Preview only; upload storage can be configured for production.</span>
         </span>
         <input type="file" accept="image/*" onChange={handleFile} className="sr-only" />
       </label>
@@ -837,26 +850,22 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
     setErrors((current) => ({ ...current, [field]: "" }));
   }
 
-  function save(isDraft = false) {
+  async function save(isDraft = false) {
     const nextErrors = validateLaundryForm(form, isDraft);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setIsSaving(true);
-    window.setTimeout(() => {
-      const laundries = getLaundries();
-      const payload = {
-        ...form,
-        id: form.id || createPrototypeId("laundry"),
-        createdAt: form.createdAt || new Date().toISOString().slice(0, 10),
-        status: isDraft ? "Draft" : form.status,
-        subscription: form.status === "Active" ? "Active" : "Trial",
-      };
-      const nextLaundries = form.id ? laundries.map((laundry) => laundry.id === form.id ? payload : laundry) : [payload, ...laundries];
-      saveLaundries(nextLaundries);
+    try {
+      const payload = { ...form, status: isDraft ? "Inactive" : form.status };
+      const data = form.id ? await api.patch(`/laundries/${form.id}/`, payload) : await api.post("/laundries/", payload);
       setIsSaving(false);
-      setSuccess(isDraft ? "Draft saved to localStorage." : "Laundry business and owner saved.");
-      if (mode === "create" && !isDraft) window.setTimeout(() => router.push(`/super-admin/laundries/${payload.id}`), 650);
-    }, 700);
+      setSuccess(isDraft ? "Laundry saved as inactive." : "Laundry business and owner saved.");
+      if (mode === "create" && !isDraft) router.push(`/super-admin/laundries/${data.laundry.id}`);
+    } catch (error) {
+      setErrors(error.fields || {});
+      setSuccess("");
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -924,18 +933,27 @@ export function LaundryDetailsPage() {
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => {
-      setLaundry(getLaundries().find((item) => item.id === laundryId));
-      setBranches(getBranches().filter((branch) => branch.laundryId === laundryId));
-    }, 0);
+    let isMounted = true;
+    async function loadLaundry() {
+      const data = await api.get(`/laundries/${laundryId}/`);
+      if (isMounted) {
+        setLaundry(data.laundry);
+        setBranches(data.branches || []);
+      }
+    }
+    loadLaundry().catch(() => {
+      if (isMounted) setLaundry(null);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, [laundryId]);
 
   return (
     <AppShell type="super-admin" title={laundry?.name || "Laundry Details"} subtitle="View branches and edit laundry or owner information">
       {() => {
-        if (!laundry) return <EmptyState title="Laundry not found" body="This prototype record is not available in localStorage." action={<Link href="/super-admin/laundries"><Button>Back to laundries</Button></Link>} />;
-        if (isEditing) return <LaundryForm initialValue={{ ...emptyLaundryForm, ...laundry, password: "Owner@2026", confirmPassword: "Owner@2026" }} mode="edit" />;
+        if (!laundry) return <EmptyState title="Laundry not found" body="This laundry is not available to the current account." action={<Link href="/super-admin/laundries"><Button>Back to laundries</Button></Link>} />;
+        if (isEditing) return <LaundryForm initialValue={{ ...emptyLaundryForm, ...laundry, password: "********", confirmPassword: "********" }} mode="edit" />;
         return (
           <div className="space-y-6">
             <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
@@ -1037,11 +1055,23 @@ export function BranchSelectionPage() {
   const router = useRouter();
   const { session, isReady } = useProtectedSession("business");
   const [recentBranchId, setRecentBranchId] = useState("");
+  const [branches, setBranchesState] = useState([]);
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => setRecentBranchId(window.localStorage.getItem(STORAGE_KEYS.recentBranch) || ""), 0);
-  }, []);
+    let isMounted = true;
+    async function loadBranches() {
+      if (!session) return;
+      const nextBranches = await getAccessibleBranches(session);
+      if (isMounted) {
+        setBranchesState(nextBranches);
+        setRecentBranchId(session.currentBranchId || "");
+      }
+    }
+    loadBranches();
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
 
   if (!isReady) return <LoadingShell />;
 
@@ -1062,11 +1092,10 @@ export function BranchSelectionPage() {
               <span className="block text-sm font-bold text-zinc-950">{session?.name}</span>
               <span className="block text-xs text-zinc-500">{session?.role}</span>
             </span>
-            <Button variant="secondary" onClick={() => { logout(); router.push("/login"); }}><LogOut size={17} /> Logout</Button>
+            <Button variant="secondary" onClick={async () => { await logout(); router.push("/login"); }}><LogOut size={17} /> Logout</Button>
           </div>
         </header>
         {(() => {
-        const branches = getAccessibleBranches(session);
         function openBranch(branchId) {
           updateCurrentBranch(branchId);
           router.push(`/branch/${branchId}/dashboard`);
@@ -1116,7 +1145,7 @@ export function CreateBranchPage() {
     setErrors((current) => ({ ...current, [field]: "" }));
   }
 
-  function save(session) {
+  async function save(session) {
     const nextErrors = {};
     ["name", "code", "email", "phone", "address", "city", "state", "postalCode", "manager"].forEach((field) => {
       if (!form[field]) nextErrors[field] = "Required";
@@ -1124,25 +1153,21 @@ export function CreateBranchPage() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setIsSaving(true);
-    window.setTimeout(() => {
-      const branch = {
-        ...form,
-        id: createPrototypeId("branch"),
-        laundryId: session.laundryId,
-        staffCount: 1,
-      };
-      const branches = [branch, ...getBranches()];
-      saveBranches(branches);
+    try {
+      const branch = await createBranch({ ...form, laundryId: session.laundryId });
       updateCurrentBranch(branch.id);
       setIsSaving(false);
       router.push(`/branch/${branch.id}/dashboard`);
-    }, 650);
+    } catch (error) {
+      setErrors(error.fields || {});
+      setIsSaving(false);
+    }
   }
 
   return (
     <AppShell type="business" title="Create Branch" subtitle="Add branch operating details and open the dashboard immediately">
       {(session) => {
-        if (!can(session, "create_branch")) return <EmptyState title="Branch creation is not available" body="Your demo role can work inside assigned branches but cannot create new ones." />;
+        if (!can(session, "create_branch")) return <EmptyState title="Branch creation is not available" body="Your role can work inside assigned branches but cannot create new ones." />;
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="grid gap-4 md:grid-cols-2">
@@ -1171,24 +1196,41 @@ export function CreateBranchPage() {
 }
 
 export function BranchDashboardPage() {
-  const pathname = usePathname();
-  const branchId = pathname.split("/").filter(Boolean).at(-2);
-
   return (
-    <AppShell type="business" title="Branch Dashboard" subtitle="Live operating snapshot for the selected branch">
-      {(session) => {
-        const branch = getAccessibleBranches(session).find((item) => item.id === branchId);
-        if (!branch) return <EmptyState title="Branch unavailable" body="This branch is not assigned to the current demo user." action={<Link href="/home"><Button>Choose branch</Button></Link>} />;
-        const branchOrders = getOrders().filter((order) => order.branchId === branch.id);
-        const today = new Date().toISOString().slice(0, 10);
-        const todayOrders = branchOrders.filter((order) => order.createdAt === today);
-        const processingOrders = branchOrders.filter((order) => ["Pending", "Processing", "Approved"].includes(order.status));
-        const pendingDeliveryOrders = branchOrders.filter((order) => order.status === "Pending Delivery");
-        const deliveredOrders = branchOrders.filter((order) => order.status === "Delivered");
-        const pendingPaymentTotal = branchOrders.reduce((sum, order) => sum + Math.max(0, Number(order.grandTotal || 0) - Number(order.paidAmount || 0)), 0);
-        const revenueTotal = branchOrders.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
-        return (
-          <div className="space-y-6">
+    <BranchModuleShell title="Branch Dashboard" subtitle="Live operating snapshot for the selected branch">
+      {(session, branch) => <BranchDashboardContent branch={branch} />}
+    </BranchModuleShell>
+  );
+}
+
+function BranchDashboardContent({ branch }) {
+  const [branchOrders, setBranchOrders] = useState([]);
+  const [branchCustomers, setBranchCustomers] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDashboardData() {
+      const [orders, customers] = await Promise.all([getOrders(branch.id), getCustomers(branch.id)]);
+      if (isMounted) {
+        setBranchOrders(orders);
+        setBranchCustomers(customers);
+      }
+    }
+    loadDashboardData();
+    return () => {
+      isMounted = false;
+    };
+  }, [branch.id]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayOrders = branchOrders.filter((order) => order.createdAt === today);
+  const processingOrders = branchOrders.filter((order) => ["Pending", "Processing", "Approved"].includes(order.status));
+  const pendingDeliveryOrders = branchOrders.filter((order) => order.status === "Pending Delivery");
+  const deliveredOrders = branchOrders.filter((order) => order.status === "Delivered");
+  const pendingPaymentTotal = branchOrders.reduce((sum, order) => sum + Math.max(0, Number(order.grandTotal || 0) - Number(order.paidAmount || 0)), 0);
+  const revenueTotal = branchOrders.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
+  return (
+    <div className="space-y-6">
             <section className="rounded-lg border border-cyan-200 bg-cyan-50 p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -1206,17 +1248,16 @@ export function BranchDashboardPage() {
               <StatCard icon={CheckCircle2} label="Delivered orders" value={deliveredOrders.length} detail="Completed handovers" />
               <StatCard icon={DollarSign} label="Collected revenue" value={formatMoney(revenueTotal)} detail="Receipt payments" />
               <StatCard icon={ReceiptText} label="Pending payments" value={formatMoney(pendingPaymentTotal)} detail="Balance still due" />
-              <StatCard icon={Users} label="Total customers" value={getCustomers().filter((customer) => customer.branchId === branch.id).length} detail="Saved in this branch" />
+              <StatCard icon={Users} label="Total customers" value={branchCustomers.length} detail="Saved in this branch" />
               <StatCard icon={UserPlus} label="Staff working" value={branch.staffCount} detail="Configured branch team" />
             </div>
             <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
               <RecentOrders orders={branchOrders.slice(0, 5)} branchId={branch.id} />
               <DashboardChart />
             </div>
-            <div className="grid gap-6 xl:grid-cols-3">
-              <Panel title="Pending deliveries" items={["ORD-2402 · Noah Kim · 4:00 PM", "ORD-2410 · Mia Stone · 5:20 PM", "ORD-2411 · Ethan Lee · 6:00 PM"]} />
-              <Panel title="Recent customers" items={["Emma Wilson joined today", "Ava Patel placed third order", "Lucas Brown added card payment"]} />
-              <Panel title="Staff currently working" items={["Leah Carter · Front desk", "Mateo Ruiz · Processing", "Iris Cole · Delivery"]} />
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Panel title="Pending deliveries" items={pendingDeliveryOrders.map((order) => `${order.orderNumber} · ${order.customerName} · ${order.deliveryTimeSlot}`)} emptyText="No pending deliveries." />
+              <Panel title="Recent customers" items={branchCustomers.slice(0, 3).map((customer) => `${customer.name} · ${customer.phone}`)} emptyText="No customers yet." />
             </div>
             <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold text-zinc-950">Quick actions</h2>
@@ -1224,13 +1265,9 @@ export function BranchDashboardPage() {
                 <Link href={`/branch/${branch.id}/orders/create`}><Button variant="secondary" className="w-full"><ClipboardList size={17} /> Create order</Button></Link>
                 <Link href={`/branch/${branch.id}/customers`}><Button variant="secondary" className="w-full"><UserPlus size={17} /> Add customer</Button></Link>
                 <Link href={`/branch/${branch.id}/orders`}><Button variant="secondary" className="w-full"><DollarSign size={17} /> Record payment</Button></Link>
-                <Button variant="secondary" className="w-full"><Users size={17} /> Manage staff</Button>
               </div>
             </section>
-          </div>
-        );
-      }}
-    </AppShell>
+    </div>
   );
 }
 
@@ -1242,7 +1279,7 @@ function RecentOrders({ orders = [], branchId }) {
         {branchId ? <Link href={`/branch/${branchId}/orders`} className="text-sm font-semibold text-cyan-700 hover:text-cyan-900">View all</Link> : null}
       </div>
       <div className="mt-4 overflow-hidden rounded-lg border border-zinc-200">
-        {(orders.length ? orders : orderRows).map((order) => (
+        {orders.map((order) => (
           <div key={order.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-0 md:grid-cols-[0.8fr_1fr_1fr_auto_auto] md:items-center">
             <p className="font-bold text-zinc-950">{order.orderNumber || order.id}</p>
             <p className="text-sm text-zinc-600">{order.customerName || order.customer}</p>
@@ -1252,6 +1289,7 @@ function RecentOrders({ orders = [], branchId }) {
           </div>
         ))}
       </div>
+      {!orders.length ? <EmptyState title="No recent orders" body="Create an order to populate this branch dashboard." /> : null}
     </section>
   );
 }
@@ -1261,7 +1299,7 @@ function DashboardChart() {
     <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-zinc-950">Order status chart</h2>
       <div className="mt-5 flex h-56 items-end gap-3 rounded-lg bg-zinc-50 p-4">
-        {[45, 72, 38, 58, 86, 64, 91].map((height, index) => (
+        {[0, 0, 0, 0, 0, 0, 0].map((height, index) => (
           <div key={height} className="flex flex-1 flex-col items-center gap-2">
             <div className="w-full rounded-t-lg bg-cyan-600" style={{ height: `${height}%` }} />
             <span className="text-xs font-semibold text-zinc-500">{["M", "T", "W", "T", "F", "S", "S"][index]}</span>
@@ -1272,19 +1310,19 @@ function DashboardChart() {
       <div className="mt-3 h-3 overflow-hidden rounded-full bg-zinc-100">
         <div className="h-full w-[72%] bg-emerald-500" />
       </div>
-      <p className="mt-2 text-sm text-zinc-500">72% of weekly target reached.</p>
+      <p className="mt-2 text-sm text-zinc-500">Revenue progress appears after receipt payments are recorded.</p>
     </section>
   );
 }
 
-function Panel({ title, items }) {
+function Panel({ title, items, emptyText = "No records found." }) {
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-bold text-zinc-950">{title}</h2>
       <div className="mt-4 space-y-3">
-        {items.map((item) => (
+        {items.length ? items.map((item) => (
           <div key={item} className="rounded-lg bg-zinc-50 p-3 text-sm font-medium text-zinc-700">{item}</div>
-        ))}
+        )) : <div className="rounded-lg bg-zinc-50 p-3 text-sm font-medium text-zinc-500">{emptyText}</div>}
       </div>
     </section>
   );
@@ -1299,12 +1337,35 @@ function BranchModuleShell({ title, subtitle, children }) {
   return (
     <AppShell type="business" title={title} subtitle={subtitle}>
       {(session) => {
-        const branch = getAccessibleBranches(session).find((item) => item.id === branchId);
-        if (!branch) return <EmptyState title="Branch unavailable" body="This branch is not assigned to the current demo user." action={<Link href="/home"><Button>Choose branch</Button></Link>} />;
-        return children(session, branch);
+        return <BranchScope session={session} branchId={branchId}>{children}</BranchScope>;
       }}
     </AppShell>
   );
+}
+
+function BranchScope({ session, branchId, children }) {
+  const [branch, setBranch] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadBranch() {
+      setIsLoading(true);
+      const branches = await getAccessibleBranches(session);
+      if (isMounted) {
+        setBranch(branches.find((item) => item.id === branchId) || null);
+        setIsLoading(false);
+      }
+    }
+    loadBranch();
+    return () => {
+      isMounted = false;
+    };
+  }, [branchId, session]);
+
+  if (isLoading) return <LoadingShell />;
+  if (!branch) return <EmptyState title="Branch unavailable" body="This branch is not assigned to the current user." action={<Link href="/home"><Button>Choose branch</Button></Link>} />;
+  return children(session, branch);
 }
 
 function SectionHeader({ title, action }) {
@@ -1409,33 +1470,28 @@ export function OrdersPage() {
   const [labelTarget, setLabelTarget] = useState(null);
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => setOrders(getOrders()), 0);
+    let isMounted = true;
+    async function loadOrders() {
+      const nextOrders = await getOrders();
+      if (isMounted) setOrders(nextOrders);
+    }
+    loadOrders();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  function updateOrderStatus(orderId, nextStatus) {
-    const nextOrders = orders.map((order) => order.id === orderId ? { ...order, status: nextStatus } : order);
-    saveOrders(nextOrders);
+  async function updateOrderStatus(orderId, nextStatus) {
+    const savedOrder = await updateOrder(orderId, { status: nextStatus });
+    const nextOrders = orders.map((order) => order.id === orderId ? savedOrder : order);
+    await saveOrders(nextOrders);
     setOrders(nextOrders);
   }
 
-  function saveReceipt(order, receipt) {
-    const receipts = getPaymentReceipts();
-    const savedReceipt = {
-      id: createPrototypeId("receipt"),
-      orderId: order.id,
-      amount: receipt.amount,
-      method: receipt.method,
-      note: receipt.note,
-      paidAt: new Date().toISOString().slice(0, 10),
-    };
-    savePaymentReceipts([savedReceipt, ...receipts]);
-    const nextOrders = orders.map((current) => {
-      if (current.id !== order.id) return current;
-      const paidAmount = Number(current.paidAmount || 0) + Number(receipt.amount || 0);
-      return { ...current, paidAmount, paymentStatus: calculatePaymentStatus(current.grandTotal, paidAmount) };
-    });
-    saveOrders(nextOrders);
+  async function saveReceipt(order, receipt) {
+    const data = await createPaymentReceipt(order.id, receipt);
+    const nextOrders = orders.map((current) => current.id === order.id ? data.order : current);
+    await saveOrders(nextOrders);
     setOrders(nextOrders);
     setReceiptTarget(null);
   }
@@ -1550,12 +1606,19 @@ export function CreateOrderPage() {
   });
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => {
-      setCustomers(getCustomers());
-      setServiceItems(getServiceItems());
-      setTimeSlots(getTimeSlots());
-    }, 0);
+    let isMounted = true;
+    async function loadCreateOrderData() {
+      const [nextCustomers, nextServiceItems, nextTimeSlots] = await Promise.all([getCustomers(), getServiceItems(), getTimeSlots()]);
+      if (isMounted) {
+        setCustomers(nextCustomers);
+        setServiceItems(nextServiceItems);
+        setTimeSlots(nextTimeSlots);
+      }
+    }
+    loadCreateOrderData();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const totals = useMemo(() => {
@@ -1582,14 +1645,14 @@ export function CreateOrderPage() {
   }
 
   function addRow() {
-    setForm((current) => ({ ...current, items: [...current.items, { rowId: createPrototypeId("row"), itemId: "", quantity: 1, unitPrice: 0, itemCount: 1 }] }));
+    setForm((current) => ({ ...current, items: [...current.items, { rowId: createClientId("row"), itemId: "", quantity: 1, unitPrice: 0, itemCount: 1 }] }));
   }
 
   function removeRow(rowId) {
     setForm((current) => ({ ...current, items: current.items.length === 1 ? current.items : current.items.filter((row) => row.rowId !== rowId) }));
   }
 
-  function submit(branch) {
+  async function submit(branch) {
     const nextErrors = {};
     if (!selectedCustomer) nextErrors.customer = "Select a customer";
     if (!form.deliveryDate) nextErrors.deliveryDate = "Required";
@@ -1597,47 +1660,15 @@ export function CreateOrderPage() {
     if (form.items.some((row) => !row.itemId)) nextErrors.items = "Select an item for every row";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
-    const orders = getOrders();
-    const savedRows = totals.rows.map((row) => {
-      const item = serviceItems.find((currentItem) => currentItem.id === row.itemId);
-      return {
-        ...row,
-        itemName: item.name,
-        shortCode: item.shortCode,
-        unitType: item.unitType,
-        quantity: Number(row.quantity || 0),
-        unitPrice: Number(row.unitPrice || 0),
-        itemCount: Number(row.itemCount || 0),
-      };
-    });
-    const paidAmount = Number(form.paidAmount || 0);
-    const order = {
-      id: createPrototypeId("order"),
-      orderNumber: `ORD-${2601 + orders.length}`,
-      laundryId: branch.laundryId,
+    await createOrder({
       branchId: branch.id,
       customerId: selectedCustomer.id,
-      customerName: selectedCustomer.name,
-      customerPhone: selectedCustomer.phone,
-      customerEmail: selectedCustomer.email,
-      customerAddress: selectedCustomer.address,
       deliveryDate: form.deliveryDate,
       deliveryTimeSlot: form.deliveryTimeSlot,
-      status: "Pending",
-      items: savedRows,
-      itemCount: totals.itemCount,
-      totalItemQuantity: totals.totalItemQuantity,
-      subTotal: totals.subTotal,
       discount: totals.discount,
-      grandTotal: totals.grandTotal,
-      paidAmount,
-      paymentStatus: calculatePaymentStatus(totals.grandTotal, paidAmount),
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-    saveOrders([order, ...orders]);
-    if (paidAmount > 0) {
-      savePaymentReceipts([{ id: createPrototypeId("receipt"), orderId: order.id, amount: paidAmount, method: "Cash", note: "Initial payment", paidAt: order.createdAt }, ...getPaymentReceipts()]);
-    }
+      paidAmount: Number(form.paidAmount || 0),
+      items: totals.rows,
+    });
     router.push(`/branch/${branch.id}/orders`);
   }
 
@@ -1739,17 +1770,27 @@ export function OrderDetailsPage() {
   const [showLabels, setShowLabels] = useState(false);
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => {
-      setOrder(getOrders().find((item) => item.id === orderId));
-      setReceipts(getPaymentReceipts().filter((receipt) => receipt.orderId === orderId));
-    }, 0);
+    let isMounted = true;
+    async function loadOrder() {
+      const nextOrder = await getOrder(orderId);
+      const nextReceipts = await getPaymentReceipts(orderId);
+      if (isMounted) {
+        setOrder(nextOrder);
+        setReceipts(nextReceipts);
+      }
+    }
+    loadOrder().catch(() => {
+      if (isMounted) setOrder(null);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, [orderId]);
 
   return (
     <BranchModuleShell title={order?.orderNumber || "Order Details"} subtitle="Work order details, items, receipts, and printable labels">
       {(session, branch) => {
-        if (!order) return <EmptyState title="Order not found" body="This work order is not available in prototype storage." action={<Link href={`/branch/${branch.id}/orders`}><Button>Back to orders</Button></Link>} />;
+        if (!order) return <EmptyState title="Order not found" body="This work order is not available to the current account." action={<Link href={`/branch/${branch.id}/orders`}><Button>Back to orders</Button></Link>} />;
         return (
           <div className="space-y-6">
             <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
@@ -1802,8 +1843,15 @@ export function CustomersPage() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => setCustomers(getCustomers()), 0);
+    let isMounted = true;
+    async function loadCustomers() {
+      const nextCustomers = await getCustomers();
+      if (isMounted) setCustomers(nextCustomers);
+    }
+    loadCustomers();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (
@@ -1864,15 +1912,14 @@ export function CreateCustomerPage() {
     setErrors((current) => ({ ...current, [field]: "" }));
   }
 
-  function saveCustomer(branch) {
+  async function saveCustomer(branch) {
     const nextErrors = {};
     if (!form.name) nextErrors.name = "Required";
     if (!form.phone) nextErrors.phone = "Required";
     if (form.email && !form.email.includes("@")) nextErrors.email = "Enter a valid email";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
-    const customer = { ...form, id: createPrototypeId("customer"), laundryId: branch.laundryId, branchId: branch.id };
-    saveCustomers([customer, ...getCustomers()]);
+    await createCustomer({ ...form, branchId: branch.id });
     router.push(`/branch/${branch.id}/customers`);
   }
 
@@ -1896,19 +1943,26 @@ export function CreateCustomerPage() {
   );
 }
 
-function useSettingsPrototypeData() {
+function useSettingsData(branch) {
   const [groups, setGroups] = useState([]);
   const [items, setItems] = useState([]);
   const [slots, setSlots] = useState([]);
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => {
-      setGroups(getItemGroups());
-      setItems(getServiceItems());
-      setSlots(getTimeSlots());
-    }, 0);
-  }, []);
+    let isMounted = true;
+    async function loadSettingsData() {
+      const [nextGroups, nextItems, nextSlots] = await Promise.all([getItemGroups(branch?.laundryId), getServiceItems(branch?.laundryId), getTimeSlots(branch?.laundryId)]);
+      if (isMounted) {
+        setGroups(nextGroups);
+        setItems(nextItems);
+        setSlots(nextSlots);
+      }
+    }
+    loadSettingsData();
+    return () => {
+      isMounted = false;
+    };
+  }, [branch?.laundryId]);
 
   return { groups, setGroups, items, setItems, slots, setSlots };
 }
@@ -1935,8 +1989,15 @@ export function SettingsBranchManagementPage() {
   const router = useRouter();
 
   useEffect(() => {
-    seedPrototypeData();
-    window.setTimeout(() => setBranches(getBranches()), 0);
+    let isMounted = true;
+    async function loadBranches() {
+      const nextBranches = await getBranches();
+      if (isMounted) setBranches(nextBranches);
+    }
+    loadBranches();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   function openBranch(branchId) {
@@ -1944,9 +2005,11 @@ export function SettingsBranchManagementPage() {
     router.push(`/branch/${branchId}/dashboard`);
   }
 
-  function toggleBranch(branchId) {
+  async function toggleBranch(branchId) {
     const nextBranches = branches.map((branch) => branch.id === branchId ? { ...branch, status: branch.status === "Active" ? "Inactive" : "Active" } : branch);
-    saveBranches(nextBranches);
+    const target = nextBranches.find((branch) => branch.id === branchId);
+    await updateBranch(branchId, { status: target.status });
+    await saveBranches(nextBranches);
     setBranches(nextBranches);
   }
 
@@ -2015,22 +2078,25 @@ export function SettingsBranchManagementPage() {
 }
 
 export function SettingsItemGroupsPage() {
-  const { groups, setGroups } = useSettingsPrototypeData();
+  const { groups, setGroups } = useSettingsData();
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [groupName, setGroupName] = useState("");
 
-  function addGroup(branch) {
+  async function addGroup(branch) {
     if (!groupName.trim()) return;
-    const nextGroups = [{ id: createPrototypeId("group"), laundryId: branch.laundryId, name: groupName.trim(), status: "Active" }, ...groups];
-    saveItemGroups(nextGroups);
+    const group = await createItemGroup({ laundryId: branch.laundryId, name: groupName.trim() });
+    const nextGroups = [group, ...groups];
+    await saveItemGroups(nextGroups);
     setGroups(nextGroups);
     setGroupName("");
     setShowGroupForm(false);
   }
 
-  function toggleGroup(groupId) {
+  async function toggleGroup(groupId) {
     const nextGroups = groups.map((group) => group.id === groupId ? { ...group, status: group.status === "Active" ? "Inactive" : "Active" } : group);
-    saveItemGroups(nextGroups);
+    const target = nextGroups.find((group) => group.id === groupId);
+    await updateItemGroup(groupId, { status: target.status });
+    await saveItemGroups(nextGroups);
     setGroups(nextGroups);
   }
 
@@ -2077,23 +2143,25 @@ export function SettingsItemGroupsPage() {
 }
 
 export function SettingsItemsPage() {
-  const { groups, items, setItems } = useSettingsPrototypeData();
+  const { groups, items, setItems } = useSettingsData();
   const [showItemForm, setShowItemForm] = useState(false);
   const [itemForm, setItemForm] = useState({ name: "", shortCode: "", groupId: "", pricingMethod: "Fixed price", price: "", unitType: "Quantity", status: "Active" });
 
-  function addItem(branch) {
+  async function addItem(branch) {
     if (!itemForm.name || !itemForm.shortCode || !itemForm.groupId || !itemForm.price) return;
-    const item = { ...itemForm, id: createPrototypeId("item"), laundryId: branch.laundryId, price: Number(itemForm.price || 0) };
+    const item = await createServiceItem({ ...itemForm, laundryId: branch.laundryId, price: Number(itemForm.price || 0) });
     const nextItems = [item, ...items];
-    saveServiceItems(nextItems);
+    await saveServiceItems(nextItems);
     setItems(nextItems);
     setItemForm({ name: "", shortCode: "", groupId: "", pricingMethod: "Fixed price", price: "", unitType: "Quantity", status: "Active" });
     setShowItemForm(false);
   }
 
-  function toggleItem(itemId) {
+  async function toggleItem(itemId) {
     const nextItems = items.map((item) => item.id === itemId ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item);
-    saveServiceItems(nextItems);
+    const target = nextItems.find((item) => item.id === itemId);
+    await updateServiceItem(itemId, { status: target.status });
+    await saveServiceItems(nextItems);
     setItems(nextItems);
   }
 
@@ -2179,22 +2247,25 @@ export function SettingsItemsPage() {
 }
 
 export function SettingsTimeSlotsPage() {
-  const { slots, setSlots } = useSettingsPrototypeData();
+  const { slots, setSlots } = useSettingsData();
   const [showSlotForm, setShowSlotForm] = useState(false);
   const [slotLabel, setSlotLabel] = useState("");
 
-  function addSlot(branch) {
+  async function addSlot(branch) {
     if (!slotLabel.trim()) return;
-    const nextSlots = [{ id: createPrototypeId("slot"), laundryId: branch.laundryId, label: slotLabel.trim(), status: "Active" }, ...slots];
-    saveTimeSlots(nextSlots);
+    const slot = await createTimeSlot({ laundryId: branch.laundryId, label: slotLabel.trim() });
+    const nextSlots = [slot, ...slots];
+    await saveTimeSlots(nextSlots);
     setSlots(nextSlots);
     setSlotLabel("");
     setShowSlotForm(false);
   }
 
-  function toggleSlot(slotId) {
+  async function toggleSlot(slotId) {
     const nextSlots = slots.map((slot) => slot.id === slotId ? { ...slot, status: slot.status === "Active" ? "Inactive" : "Active" } : slot);
-    saveTimeSlots(nextSlots);
+    const target = nextSlots.find((slot) => slot.id === slotId);
+    await updateTimeSlot(slotId, { status: target.status });
+    await saveTimeSlots(nextSlots);
     setSlots(nextSlots);
   }
 

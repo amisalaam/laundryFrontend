@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "LaundryOS Prototype",
-  description: "Frontend-only multi-branch laundry management prototype",
+  title: "LaundryOS",
+  description: "Multi-branch laundry management system",
 };
 
 export default function RootLayout({ children }) {

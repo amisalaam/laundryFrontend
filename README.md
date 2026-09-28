@@ -1,28 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LaundryOS Frontend
 
 ## Getting Started
 
-First, run the development server:
+Point the frontend at the Django API:
 
 ```bash
+cd laundryfrontend
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Set `NEXT_PUBLIC_API_BASE_URL` to the backend API root, for example `http://localhost:8000/api/v1`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Checks
 
-## Learn More
+```bash
+npm run lint
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+The application uses the Django backend as the source of truth. Authentication, branch scope, catalog records, customers, orders, and receipts are all loaded through the API client in `lib/api.js`.
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
