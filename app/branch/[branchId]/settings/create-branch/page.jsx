@@ -1,5 +1,5 @@
-import { SettingsCreateBranchPage } from "@/components/prototype/app";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <SettingsCreateBranchPage />;
+  redirect("/settings/branches/create");
 }

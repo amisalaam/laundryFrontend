@@ -1,5 +1,5 @@
-import { CreateBranchPage } from "@/components/prototype/app";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <CreateBranchPage />;
+  redirect("/settings/branches/create");
 }
