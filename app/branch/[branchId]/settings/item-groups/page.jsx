@@ -1,5 +1,5 @@
-import { SettingsItemGroupsPage } from "@/components/prototype/app";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <SettingsItemGroupsPage />;
+  redirect("/settings/item-groups");
 }

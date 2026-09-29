@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -41,7 +41,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { authenticate, can, getAccessibleBranches, getSession, logout, setSession, updateCurrentBranch } from "@/lib/auth";
+import { authenticate, can, getAccessibleBranches, getCachedSession, getSession, logout, setSession, updateCurrentBranch } from "@/lib/auth";
 import {
   createBranch,
   createCustomer,
@@ -51,6 +51,7 @@ import {
   createServiceItem,
   createTimeSlot,
   getBranches,
+  getCachedBranches,
   getCustomers,
   getItemGroups,
   getLaundries,
@@ -92,6 +93,21 @@ const statusStyles = {
 };
 
 const orderStatuses = ["Pending", "Processing", "Approved", "Pending Delivery", "Delivered", "Cancelled"];
+
+const INITIAL_BRANCH_FORM = {
+  name: "",
+  code: "",
+  email: "",
+  phone: "",
+  address: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  openingTime: "08:00",
+  closingTime: "20:00",
+  manager: "",
+  status: "Active",
+};
 
 function formatMoney(value) {
   return `$${Number(value || 0).toFixed(2)}`;
@@ -183,6 +199,106 @@ function SelectInput({ error, children, ...props }) {
     >
       {children}
     </select>
+  );
+}
+
+function CustomerCombobox({ customers, selectedCustomer, onSelect, error }) {
+  const containerRef = useRef(null);
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const selectedLabel = selectedCustomer ? `${selectedCustomer.name} · ${selectedCustomer.phone}` : "";
+  const visibleCustomers = customers
+    .filter((customer) => [customer.name, customer.phone, customer.email].join(" ").toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 8);
+
+  useEffect(() => {
+    function closeOnOutsideClick(event) {
+      if (!containerRef.current?.contains(event.target)) setIsOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
+  function chooseCustomer(customer) {
+    onSelect(customer);
+    setQuery(`${customer.name} · ${customer.phone}`);
+    setIsOpen(false);
+    setActiveIndex(0);
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) => Math.min(current + 1, Math.max(visibleCustomers.length - 1, 0)));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((current) => Math.max(current - 1, 0));
+    } else if (event.key === "Enter" && isOpen && visibleCustomers[activeIndex]) {
+      event.preventDefault();
+      chooseCustomer(visibleCustomers[activeIndex]);
+    } else if (event.key === "Escape") {
+      setIsOpen(false);
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className={classNames(
+        "flex h-11 items-center gap-2 rounded-lg border bg-white px-3 transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100",
+        error ? "border-rose-300" : "border-zinc-200",
+      )}>
+        <Search size={17} className="shrink-0 text-zinc-400" />
+        <input
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-controls="customer-options"
+          aria-autocomplete="list"
+          value={isOpen ? query : selectedLabel}
+          onFocus={() => {
+            setQuery("");
+            setIsOpen(true);
+            setActiveIndex(0);
+          }}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            onSelect(null);
+            setIsOpen(true);
+            setActiveIndex(0);
+          }}
+          onKeyDown={handleKeyDown}
+          className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+          placeholder="Search by name, phone, or email"
+        />
+        <ChevronDown size={16} className="shrink-0 text-zinc-400" />
+      </div>
+      {isOpen ? (
+        <div id="customer-options" role="listbox" className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-xl">
+          {visibleCustomers.map((customer, index) => (
+            <button
+              key={customer.id}
+              type="button"
+              role="option"
+              aria-selected={selectedCustomer?.id === customer.id}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => chooseCustomer(customer)}
+              className={classNames(
+                "flex w-full items-center justify-between gap-4 rounded-md px-3 py-2.5 text-left",
+                index === activeIndex ? "bg-cyan-50" : "hover:bg-zinc-50",
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-zinc-950">{customer.name}</span>
+                <span className="block truncate text-xs text-zinc-500">{customer.phone}{customer.email ? ` · ${customer.email}` : ""}</span>
+              </span>
+              {selectedCustomer?.id === customer.id ? <CheckCircle2 size={17} className="shrink-0 text-emerald-600" /> : null}
+            </button>
+          ))}
+          {!visibleCustomers.length ? <p className="px-3 py-4 text-center text-sm text-zinc-500">No customers found.</p> : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -300,12 +416,17 @@ function LoginScreen({ type }) {
 
 function useProtectedSession(expectedType) {
   const router = useRouter();
-  const [session, setSessionState] = useState(null);
-  const [isReady, setIsReady] = useState(false);
+  const cachedSession = getCachedSession();
+  const [session, setSessionState] = useState(cachedSession);
+  const [isReady, setIsReady] = useState(Boolean(cachedSession));
 
   useEffect(() => {
     let isMounted = true;
     async function loadSession() {
+      if (session?.loginType === expectedType) {
+        setIsReady(true);
+        return;
+      }
       const savedSession = await getSession();
       if (!isMounted) return;
       if (!savedSession || savedSession.loginType !== expectedType) {
@@ -319,7 +440,7 @@ function useProtectedSession(expectedType) {
     return () => {
       isMounted = false;
     };
-  }, [expectedType, router]);
+  }, [expectedType, router, session]);
 
   return { session, setSessionState, isReady };
 }
@@ -458,8 +579,8 @@ function AppShell({ type, title, subtitle, children }) {
   const { session, setSessionState, isReady } = useProtectedSession(type);
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [branches, setBranchesState] = useState([]);
-  const isSettingsArea = type === "business" && pathname.includes("/settings");
+  const [branches, setBranchesState] = useState(() => getCachedBranches() || []);
+  const isSettingsArea = type === "business" && pathname.startsWith("/settings");
   const links = type === "super-admin"
     ? [
         { href: "/super-admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -470,11 +591,11 @@ function AppShell({ type, title, subtitle, children }) {
       ? [
         { href: "/home", label: "Business Home", icon: Store },
         { type: "heading", label: "Settings" },
-        { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/settings/branches` : "/home", label: "Branch Management", icon: Store },
-        { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/settings/create-branch` : "/home", label: "Create Branch", icon: Plus },
-        { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/settings/item-groups` : "/home", label: "Item Groups", icon: Tag },
-        { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/settings/items` : "/home", label: "Items", icon: PackageCheck },
-        { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/settings/time-slots` : "/home", label: "Time Slots", icon: Clock3 },
+        { href: "/settings/branches", label: "Branch Management", icon: Store },
+        { href: "/settings/branches/create", label: "Create Branch", icon: Plus },
+        { href: "/settings/item-groups", label: "Item Groups", icon: Tag },
+        { href: "/settings/items", label: "Items", icon: PackageCheck },
+        { href: "/settings/time-slots", label: "Time Slots", icon: Clock3 },
       ].filter((link) => link.type === "heading" || link.label !== "Create Branch" || can(session, "create_branch"))
       : [
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/dashboard` : "/home", label: "Dashboard", icon: LayoutDashboard },
@@ -1013,7 +1134,7 @@ function Info({ label, value }) {
   );
 }
 
-function BranchCard({ branch, recentBranchId, onOpen, onSettings }) {
+function BranchCard({ branch, recentBranchId, onOpen }) {
   return (
     <div
       role={onOpen ? "button" : undefined}
@@ -1044,20 +1165,6 @@ function BranchCard({ branch, recentBranchId, onOpen, onSettings }) {
         <p>{branch.staffCount} staff</p>
       </div>
       {recentBranchId === branch.id ? <p className="mt-3 text-xs font-bold uppercase text-cyan-700">Recently opened</p> : null}
-      {onSettings ? (
-        <div className="mt-4">
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={(event) => {
-              event.stopPropagation();
-              onSettings(branch.id);
-            }}
-          >
-            <Settings size={17} /> Settings
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -1066,7 +1173,7 @@ export function BranchSelectionPage() {
   const router = useRouter();
   const { session, isReady } = useProtectedSession("business");
   const [recentBranchId, setRecentBranchId] = useState("");
-  const [branches, setBranchesState] = useState([]);
+  const [branches, setBranchesState] = useState(() => getCachedBranches() || []);
 
   useEffect(() => {
     let isMounted = true;
@@ -1096,7 +1203,7 @@ export function BranchSelectionPage() {
               Business Home
             </div>
             <h1 className="mt-3 text-3xl font-black text-zinc-950">Select a branch</h1>
-            <p className="mt-1 text-sm text-zinc-500">Choose one branch before opening dashboard, orders, customers, or settings.</p>
+            <p className="mt-1 text-sm text-zinc-500">Choose a branch to open daily operations, or use branch settings to create your first one.</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-right sm:block">
@@ -1111,18 +1218,32 @@ export function BranchSelectionPage() {
           updateCurrentBranch(branchId);
           router.push(`/branch/${branchId}/dashboard`);
         }
-        function openSettings(branchId) {
-          updateCurrentBranch(branchId);
-          router.push(`/branch/${branchId}/settings/branches`);
-        }
         return (
           <div className="space-y-5">
+            {can(session, "create_branch") ? (
+              <section className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cyan-50 text-cyan-700"><Settings size={20} /></span>
+                  <div>
+                    <h2 className="text-lg font-bold text-zinc-950">Business Settings</h2>
+                    <p className="mt-1 text-sm text-zinc-500">Manage branches, service items, item groups, and delivery time slots in one place.</p>
+                  </div>
+                </div>
+                <Link href="/settings/branches"><Button variant="secondary"><Settings size={17} /> Manage settings</Button></Link>
+              </section>
+            ) : null}
             {branches.length ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {branches.map((branch) => <BranchCard key={branch.id} branch={branch} recentBranchId={recentBranchId} onOpen={openBranch} onSettings={openSettings} />)}
+                {branches.map((branch) => <BranchCard key={branch.id} branch={branch} recentBranchId={recentBranchId} onOpen={openBranch} />)}
               </div>
             ) : (
-              <EmptyState title="You don't have any branches" body="Please create a branch before opening dashboard, orders, customers, and branch settings." />
+              <EmptyState
+                title="You don't have any branches"
+                body="Use Business Settings to create your first branch. Dashboard, orders, and customers will become available afterward."
+                action={can(session, "create_branch") ? (
+                  <Link href="/settings/branches/create"><Button><Plus size={17} /> Create first branch</Button></Link>
+                ) : null}
+              />
             )}
           </div>
         );
@@ -1135,25 +1256,14 @@ export function BranchSelectionPage() {
 export function CreateBranchPage() {
   const router = useRouter();
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    code: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    openingTime: "08:00",
-    closingTime: "20:00",
-    manager: "",
-    status: "Active",
-  });
+  const [form, setForm] = useState(INITIAL_BRANCH_FORM);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: "" }));
+    setSubmitError("");
   }
 
   async function save(session) {
@@ -1163,14 +1273,18 @@ export function CreateBranchPage() {
     });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
+    setSubmitError("");
     setIsSaving(true);
     try {
       const branch = await createBranch({ ...form, laundryId: session.laundryId });
       updateCurrentBranch(branch.id);
+      setForm(INITIAL_BRANCH_FORM);
+      setErrors({});
       setIsSaving(false);
-      router.push(`/branch/${branch.id}/dashboard`);
+      router.push(`/branch/${branch.id}/dashboard?created=1`);
     } catch (error) {
       setErrors(error.fields || {});
+      setSubmitError(getApiErrorMessage(error, "The branch could not be created."));
       setIsSaving(false);
     }
   }
@@ -1181,6 +1295,7 @@ export function CreateBranchPage() {
         if (!can(session, "create_branch")) return <EmptyState title="Branch creation is not available" body="Your role can work inside assigned branches but cannot create new ones." />;
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+            {submitError ? <div role="alert" className="mb-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700"><AlertTriangle size={18} /> {submitError}</div> : null}
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Branch name" error={errors.name}><TextInput value={form.name} onChange={(event) => update("name", event.target.value)} error={errors.name} /></Field>
               <Field label="Branch code" error={errors.code}><TextInput value={form.code} onChange={(event) => update("code", event.target.value)} error={errors.code} /></Field>
@@ -1196,7 +1311,7 @@ export function CreateBranchPage() {
               <Field label="Branch status"><SelectInput value={form.status} onChange={(event) => update("status", event.target.value)}><option>Active</option><option>Inactive</option></SelectInput></Field>
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <Link href="/home"><Button variant="secondary">Cancel</Button></Link>
+              <Link href="/settings/branches"><Button variant="secondary">Cancel</Button></Link>
               <Button onClick={() => save(session)} disabled={isSaving}>{isSaving ? <Loader2 className="animate-spin" size={17} /> : <CheckCircle2 size={17} />} Create branch</Button>
             </div>
           </section>
@@ -1207,14 +1322,15 @@ export function CreateBranchPage() {
 }
 
 export function BranchDashboardPage() {
+  const wasCreated = useSearchParams().get("created") === "1";
   return (
     <BranchModuleShell title="Branch Dashboard" subtitle="Live operating snapshot for the selected branch">
-      {(session, branch) => <BranchDashboardContent branch={branch} />}
+      {(session, branch) => <BranchDashboardContent branch={branch} wasCreated={wasCreated} />}
     </BranchModuleShell>
   );
 }
 
-function BranchDashboardContent({ branch }) {
+function BranchDashboardContent({ branch, wasCreated = false }) {
   const [branchOrders, setBranchOrders] = useState([]);
   const [branchCustomers, setBranchCustomers] = useState([]);
 
@@ -1242,6 +1358,7 @@ function BranchDashboardContent({ branch }) {
   const revenueTotal = branchOrders.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
   return (
     <div className="space-y-6">
+            {wasCreated ? <div role="status" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> Branch created successfully.</div> : null}
             <section className="rounded-lg border border-cyan-200 bg-cyan-50 p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -1354,9 +1471,18 @@ function BranchModuleShell({ title, subtitle, children }) {
   );
 }
 
+function BusinessSettingsShell({ title, subtitle, children }) {
+  return (
+    <AppShell type="business" title={title} subtitle={subtitle}>
+      {(session) => children(session, { laundryId: session.laundryId })}
+    </AppShell>
+  );
+}
+
 function BranchScope({ session, branchId, children }) {
-  const [branch, setBranch] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedBranch = getCachedBranches()?.find((item) => item.id === branchId) || null;
+  const [branch, setBranch] = useState(cachedBranch);
+  const [isLoading, setIsLoading] = useState(!cachedBranch);
 
   useEffect(() => {
     let isMounted = true;
@@ -1374,7 +1500,7 @@ function BranchScope({ session, branchId, children }) {
     };
   }, [branchId, session]);
 
-  if (isLoading) return <LoadingShell />;
+  if (isLoading) return <div className="flex min-h-48 items-center justify-center gap-3 text-sm font-semibold text-zinc-600"><Loader2 className="animate-spin text-cyan-600" size={18} /> Loading branch</div>;
   if (!branch) return <EmptyState title="Branch unavailable" body="This branch is not assigned to the current user." action={<Link href="/home"><Button>Choose branch</Button></Link>} />;
   return children(session, branch);
 }
@@ -1605,7 +1731,6 @@ export function CreateOrderPage() {
   const [customers, setCustomers] = useState([]);
   const [serviceItems, setServiceItems] = useState([]);
   const [timeSlots, setTimeSlots] = useState([]);
-  const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [errors, setErrors] = useState({});
   const [form, setForm] = useState({
@@ -1687,7 +1812,6 @@ export function CreateOrderPage() {
     <BranchModuleShell title="Create Order" subtitle="Select customer, choose configured items, calculate totals, and prepare labels">
       {(session, branch) => {
         const branchCustomers = customers.filter((customer) => customer.branchId === branch.id || customer.laundryId === branch.laundryId);
-        const visibleCustomers = branchCustomers.filter((customer) => [customer.name, customer.phone, customer.email].join(" ").toLowerCase().includes(customerQuery.toLowerCase())).slice(0, 6);
         const activeItems = serviceItems.filter((item) => item.laundryId === branch.laundryId && item.status === "Active");
         const activeSlots = timeSlots.filter((slot) => slot.laundryId === branch.laundryId && slot.status === "Active");
         return (
@@ -1695,15 +1819,17 @@ export function CreateOrderPage() {
             <div className="space-y-5">
               <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
                 <SectionHeader title="Customer" action={<Link href={`/branch/${branch.id}/customers`}><Button variant="secondary"><UserPlus size={17} /> Manage customers</Button></Link>} />
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <Field label="Search customer" error={errors.customer}>
-                    <TextInput value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Name, phone, or email" error={errors.customer} />
-                  </Field>
-                  <Field label="Select customer">
-                    <SelectInput value={selectedCustomer?.id || ""} onChange={(event) => setSelectedCustomer(branchCustomers.find((customer) => customer.id === event.target.value) || null)}>
-                      <option value="">Choose customer</option>
-                      {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.phone}</option>)}
-                    </SelectInput>
+                <div className="mt-5">
+                  <Field label="Customer" error={errors.customer}>
+                    <CustomerCombobox
+                      customers={branchCustomers}
+                      selectedCustomer={selectedCustomer}
+                      error={errors.customer}
+                      onSelect={(customer) => {
+                        setSelectedCustomer(customer);
+                        if (customer) setErrors((current) => ({ ...current, customer: "" }));
+                      }}
+                    />
                   </Field>
                 </div>
                 {selectedCustomer ? (
@@ -1954,7 +2080,7 @@ export function CreateCustomerPage() {
   );
 }
 
-function useSettingsData(branch) {
+function useSettingsData() {
   const [groups, setGroups] = useState([]);
   const [items, setItems] = useState([]);
   const [slots, setSlots] = useState([]);
@@ -1962,7 +2088,9 @@ function useSettingsData(branch) {
   useEffect(() => {
     let isMounted = true;
     async function loadSettingsData() {
-      const [nextGroups, nextItems, nextSlots] = await Promise.all([getItemGroups(branch?.laundryId), getServiceItems(branch?.laundryId), getTimeSlots(branch?.laundryId)]);
+      const session = await getSession();
+      if (!session?.laundryId) return;
+      const [nextGroups, nextItems, nextSlots] = await Promise.all([getItemGroups(session.laundryId), getServiceItems(session.laundryId), getTimeSlots(session.laundryId)]);
       if (isMounted) {
         setGroups(nextGroups);
         setItems(nextItems);
@@ -1973,20 +2101,9 @@ function useSettingsData(branch) {
     return () => {
       isMounted = false;
     };
-  }, [branch?.laundryId]);
+  }, []);
 
   return { groups, setGroups, items, setItems, slots, setSlots };
-}
-
-export function BranchSettingsPage() {
-  const router = useRouter();
-  const branchId = useBranchIdFromPath();
-
-  useEffect(() => {
-    if (branchId) router.replace(`/branch/${branchId}/settings/branches`);
-  }, [branchId, router]);
-
-  return <LoadingShell />;
 }
 
 export function SettingsCreateBranchPage() {
@@ -2025,10 +2142,10 @@ export function SettingsBranchManagementPage() {
   }
 
   return (
-    <BranchModuleShell title="Branch Management" subtitle="Manage the branches available for this laundry business">
-      {(session, selectedBranch) => {
+    <BusinessSettingsShell title="Branch Management" subtitle="Manage every branch in this laundry business">
+      {(session, business) => {
         const businessBranches = branches
-          .filter((branch) => branch.laundryId === selectedBranch.laundryId)
+          .filter((branch) => branch.laundryId === business.laundryId)
           .filter((branch) => session.role === "Laundry Owner" || session.branchIds?.includes(branch.id))
           .filter((branch) => status === "All" || branch.status === status)
           .filter((branch) => [branch.name, branch.code, branch.city, branch.manager].join(" ").toLowerCase().includes(query.toLowerCase()));
@@ -2046,7 +2163,7 @@ export function SettingsBranchManagementPage() {
                   <option>Active</option>
                   <option>Inactive</option>
                 </SelectInput>
-                {can(session, "create_branch") ? <Link href={`/branch/${selectedBranch.id}/settings/create-branch`}><Button><Plus size={17} /> Create branch</Button></Link> : null}
+                {can(session, "create_branch") ? <Link href="/settings/branches/create"><Button><Plus size={17} /> Create branch</Button></Link> : null}
               </div>
             </div>
             <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
@@ -2084,7 +2201,7 @@ export function SettingsBranchManagementPage() {
           </section>
         );
       }}
-    </BranchModuleShell>
+    </BusinessSettingsShell>
   );
 }
 
@@ -2112,9 +2229,9 @@ export function SettingsItemGroupsPage() {
   }
 
   return (
-    <BranchModuleShell title="Item Groups" subtitle="Create and manage item groups used by laundry items">
-      {(session, branch) => {
-        const businessGroups = groups.filter((group) => group.laundryId === branch.laundryId);
+    <BusinessSettingsShell title="Item Groups" subtitle="Create and manage item groups used across the laundry business">
+      {(session, business) => {
+        const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-xl font-black text-zinc-950">Item Groups</h2>
@@ -2142,14 +2259,14 @@ export function SettingsItemGroupsPage() {
             {showGroupForm ? (
               <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
                 <TextInput value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Group name, e.g. Dry Cleaning" />
-                <Button onClick={() => addGroup(branch)}><CheckCircle2 size={17} /> Save group</Button>
+                <Button onClick={() => addGroup(business)}><CheckCircle2 size={17} /> Save group</Button>
                 <Button variant="secondary" onClick={() => setShowGroupForm(false)}>Cancel</Button>
               </div>
             ) : null}
           </section>
         );
       }}
-    </BranchModuleShell>
+    </BusinessSettingsShell>
   );
 }
 
@@ -2177,10 +2294,10 @@ export function SettingsItemsPage() {
   }
 
   return (
-    <BranchModuleShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types">
-      {(session, branch) => {
-        const businessGroups = groups.filter((group) => group.laundryId === branch.laundryId);
-        const businessItems = items.filter((item) => item.laundryId === branch.laundryId);
+    <BusinessSettingsShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types">
+      {(session, business) => {
+        const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
+        const businessItems = items.filter((item) => item.laundryId === business.laundryId);
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-xl font-black text-zinc-950">Items</h2>
@@ -2245,7 +2362,7 @@ export function SettingsItemsPage() {
                   </Field>
                 </div>
                 <div className="mt-5 flex gap-3">
-                  <Button onClick={() => addItem(branch)}><Tag size={17} /> Save item</Button>
+                  <Button onClick={() => addItem(business)}><Tag size={17} /> Save item</Button>
                   <Button variant="secondary" onClick={() => setShowItemForm(false)}>Cancel</Button>
                 </div>
               </div>
@@ -2253,7 +2370,7 @@ export function SettingsItemsPage() {
           </section>
         );
       }}
-    </BranchModuleShell>
+    </BusinessSettingsShell>
   );
 }
 
@@ -2281,9 +2398,9 @@ export function SettingsTimeSlotsPage() {
   }
 
   return (
-    <BranchModuleShell title="Time Slots" subtitle="Create and manage delivery time slots used in Create Order">
-      {(session, branch) => {
-        const businessSlots = slots.filter((slot) => slot.laundryId === branch.laundryId);
+    <BusinessSettingsShell title="Time Slots" subtitle="Create and manage delivery time slots used across all branches">
+      {(session, business) => {
+        const businessSlots = slots.filter((slot) => slot.laundryId === business.laundryId);
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-xl font-black text-zinc-950">Delivery Time Slots</h2>
@@ -2311,13 +2428,13 @@ export function SettingsTimeSlotsPage() {
             {showSlotForm ? (
               <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
                 <TextInput value={slotLabel} onChange={(event) => setSlotLabel(event.target.value)} placeholder="Example: 06:00 PM - 08:00 PM" />
-                <Button onClick={() => addSlot(branch)}><Clock3 size={17} /> Save slot</Button>
+                <Button onClick={() => addSlot(business)}><Clock3 size={17} /> Save slot</Button>
                 <Button variant="secondary" onClick={() => setShowSlotForm(false)}>Cancel</Button>
               </div>
             ) : null}
           </section>
         );
       }}
-    </BranchModuleShell>
+    </BusinessSettingsShell>
   );
 }

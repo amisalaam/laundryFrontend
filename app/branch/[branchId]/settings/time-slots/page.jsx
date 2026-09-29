@@ -1,5 +1,5 @@
-import { SettingsTimeSlotsPage } from "@/components/prototype/app";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <SettingsTimeSlotsPage />;
+  redirect("/settings/time-slots");
 }
