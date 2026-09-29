@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical, PackageCheck, Plus, Printer, Search, Tag, WalletCards } from "lucide-react";
+import { MoreVertical, PackageCheck, Plus, Printer, Search, Tag, Truck, WalletCards } from "lucide-react";
 import { createReceipt, deleteOrder, errorMessage, listOrders, updateOrder, type Order } from "@/services/order-service";
 import OrderDialog, { type Action } from "./order-dialog";
 import BillPrintDialog from "./bill-print-dialog";
@@ -12,14 +12,15 @@ import ReceiptDialog from "./receipt-dialog";
 const tabs = ["Pending", "Under Processing", "Cancelled"] as const;
 type Tab = typeof tabs[number];
 function matches(order: Order, tab: Tab) { return tab === "Under Processing" ? order.status === "Processing" : order.status === tab; }
-const money = (value: number) => `$${Number(value || 0).toFixed(2)}`;
+const money = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
 const iconButton = "inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500";
 
-function Actions({ order, onAction, onBill, onLabels, onReceipt }: { order: Order; onAction: (action: Action) => void; onBill: () => void; onLabels: () => void; onReceipt: () => void }) {
+function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDelivery }: { order: Order; onAction: (action: Action) => void; onBill: () => void; onLabels: () => void; onReceipt: () => void; onMoveToDelivery: () => void }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const pending = order.status === "Pending";
+  const processing = order.status === "Processing";
   const cancelled = order.status === "Cancelled";
   useEffect(() => {
     if (!position) return;
@@ -36,8 +37,9 @@ function Actions({ order, onAction, onBill, onLabels, onReceipt }: { order: Orde
   function dismiss() { setPosition(null); trigger.current?.focus(); }
   function select(action: Action) { dismiss(); onAction(action); }
   const item = "block w-full rounded-md px-3 py-2.5 text-left text-sm hover:bg-zinc-100 focus:bg-zinc-100 focus:outline-none";
-  return <div className="flex items-center justify-end gap-1">
+  return <div className="flex items-center justify-start gap-1">
     {pending && <button type="button" onClick={() => onAction("process")} className={iconButton} title="Process Order" aria-label={`Process order ${order.orderNumber}`}><PackageCheck size={19} className="shrink-0" /></button>}
+    {processing && <button type="button" onClick={onMoveToDelivery} className={iconButton} title="Move to Delivery" aria-label={`Move ${order.orderNumber} to delivery`}><Truck size={19} className="shrink-0" /></button>}
     <button type="button" onClick={onBill} className={iconButton} title="Print bill" aria-label={`Print bill for ${order.orderNumber}`}><Printer size={19} className="shrink-0" /></button>
     <button type="button" onClick={onLabels} className={iconButton} title="Print labels" aria-label={`Print labels for ${order.orderNumber}`}><Tag size={19} className="shrink-0" /></button>
     {order.paymentStatus !== "Paid" && <button type="button" onClick={onReceipt} className={iconButton} title="Receipt" aria-label={`Receipt for ${order.orderNumber}`}><WalletCards size={19} className="shrink-0" /></button>}
@@ -101,7 +103,14 @@ export default function OrdersWorkspace({ branchId }: { branchId: string }) {
     setReceiptTarget(null);
     setNotice(`Payment recorded for ${saved.orderNumber}.`);
   }
-  function actions(order: Order) { return <Actions order={order} onAction={(action) => setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} />; }
+  async function moveToDelivery(order: Order) {
+    try {
+      const saved = await updateOrder(order.id, { status: "Pending Delivery" });
+      setOrders((rows) => rows.map((current) => current.id === saved.id ? saved : current));
+      setNotice(`${saved.orderNumber} moved to Delivery → Pending.`);
+    } catch (issue) { setError(errorMessage(issue)); }
+  }
+  function actions(order: Order) { return <Actions order={order} onAction={(action) => setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => moveToDelivery(order)} />; }
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
       <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2"><Search size={18} className="shrink-0 text-zinc-400" /><span className="sr-only">Search orders</span><input className="min-w-0 w-full text-sm outline-none" placeholder="Search order, customer, phone" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
@@ -116,7 +125,7 @@ export default function OrdersWorkspace({ branchId }: { branchId: string }) {
     {error && <div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error} <button className="ml-2 underline" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Retry</button></div>}
     <div id="orders-panel" role="tabpanel" aria-labelledby={`orders-tab-${tabs.indexOf(tab)}`} aria-busy={loading} className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
       {loading ? <p className="p-6 text-sm text-zinc-500">Loading orders…</p> : <>
-        <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-zinc-50 text-xs uppercase text-zinc-500"><tr>{["Order", "Customer", "Delivery", "Items", "Grand total", "Payment", "Actions"].map((heading) => <th key={heading} scope="col" className={`px-4 py-3 ${heading === "Actions" ? "text-right" : ""}`}>{heading}</th>)}</tr></thead>
+        <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-zinc-50 text-xs uppercase text-zinc-500"><tr>{["Order", "Customer", "Delivery", "Items", "Grand total", "Payment", "Actions"].map((heading) => <th key={heading} scope="col" className="px-4 py-3">{heading}</th>)}</tr></thead>
           <tbody className="divide-y divide-zinc-200">{visible.map((order) => <tr key={order.id}>
             <td className="px-4 py-4"><Link className="font-bold text-cyan-700" href={`/branch/${branchId}/orders/${order.id}`}>{order.orderNumber}</Link></td>
             <td className="px-4 py-4"><p className="font-semibold">{order.customerName}</p><p className="text-zinc-500">{order.customerPhone}</p></td>
@@ -138,5 +147,6 @@ export default function OrdersWorkspace({ branchId }: { branchId: string }) {
 
 function Payment({ order }: { order: Order }) {
   const tone = order.paymentStatus === "Paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : order.paymentStatus === "Partial" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-rose-200 bg-rose-50 text-rose-700";
-  return <><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{order.paymentStatus}</span><p className="mt-1 text-xs text-zinc-500">{money(order.paidAmount)} paid</p></>;
+  const dueAmount = Math.max(0, Number(order.grandTotal || 0) - Number(order.paidAmount || 0));
+  return <><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{order.paymentStatus}</span><p className="mt-1 text-xs text-zinc-500">{money(order.paidAmount)} paid</p><p className={`text-xs font-semibold ${dueAmount > 0 ? "text-rose-700" : "text-emerald-700"}`}>{money(dueAmount)} due</p></>;
 }

@@ -5,6 +5,7 @@ import Image from "next/image";
 import BillPrintDialog from "./bill-print-dialog";
 import LabelPrintDialog from "./label-print-dialog";
 import OrdersWorkspace from "./orders-workspace";
+import DeliveryWorkspace from "./delivery-workspace";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -110,7 +111,7 @@ const INITIAL_BRANCH_FORM = {
 };
 
 function formatMoney(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
+  return `₹${Number(value || 0).toFixed(2)}`;
 }
 
 function getBranchPath(pathname) {
@@ -602,6 +603,7 @@ function AppShell({ type, title, subtitle, children }) {
         { type: "heading", label: "Operations" },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/orders` : "/home", label: "Orders", icon: ClipboardList },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/customers` : "/home", label: "Customers", icon: Users },
+        { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/delivery` : "/home", label: "Delivery", icon: Truck },
       ].filter((link) => link.type === "heading" || link.label !== "Create Branch" || can(session, "create_branch"));
 
   useEffect(() => {
@@ -1568,6 +1570,12 @@ function AddReceiptModal({ order, onCancel, onSave }) {
 export function OrdersPage() {
   return <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking">
     {(session, branch) => <OrdersWorkspace key={branch.id} branchId={branch.id} />}
+  </BranchModuleShell>;
+}
+
+export function DeliveryPage() {
+  return <BranchModuleShell title="Delivery" subtitle="Manage pending and completed customer deliveries">
+    {(session, branch) => <DeliveryWorkspace key={branch.id} branchId={branch.id} />}
   </BranchModuleShell>;
 }
 

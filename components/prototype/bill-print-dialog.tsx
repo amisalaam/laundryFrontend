@@ -29,7 +29,7 @@ type Order = {
   items: Item[];
 };
 
-const formatMoney = (value: number) => `$${Number(value || 0).toFixed(2)}`;
+const formatMoney = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
 
 export default function BillPrintDialog({ order, onClose }: { order: Order; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
