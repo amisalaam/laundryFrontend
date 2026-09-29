@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import BillPrintDialog from "./bill-print-dialog";
+import LabelPrintDialog from "./label-print-dialog";
+import OrdersWorkspace from "./orders-workspace";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -63,12 +66,10 @@ import {
   saveBranches,
   saveItemGroups,
   saveLaundries,
-  saveOrders,
   saveServiceItems,
   saveTimeSlots,
   updateBranch,
   updateItemGroup,
-  updateOrder,
   updateServiceItem,
   updateTimeSlot,
 } from "@/lib/storage";
@@ -92,7 +93,6 @@ const statusStyles = {
   Unpaid: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
-const orderStatuses = ["Pending", "Processing", "Approved", "Pending Delivery", "Delivered", "Cancelled"];
 
 const INITIAL_BRANCH_FORM = {
   name: "",
@@ -1428,7 +1428,7 @@ function DashboardChart() {
       <h2 className="text-lg font-bold text-zinc-950">Order status chart</h2>
       <div className="mt-5 flex h-56 items-end gap-3 rounded-lg bg-zinc-50 p-4">
         {[0, 0, 0, 0, 0, 0, 0].map((height, index) => (
-          <div key={height} className="flex flex-1 flex-col items-center gap-2">
+          <div key={["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][index]} className="flex flex-1 flex-col items-center gap-2">
             <div className="w-full rounded-t-lg bg-cyan-600" style={{ height: `${height}%` }} />
             <span className="text-xs font-semibold text-zinc-500">{["M", "T", "W", "T", "F", "S", "S"][index]}</span>
           </div>
@@ -1564,173 +1564,20 @@ function AddReceiptModal({ order, onCancel, onSave }) {
   );
 }
 
-function LabelPrintView({ order, onClose }) {
-  const labels = order.items.flatMap((item) => Array.from({ length: Number(item.itemCount || item.quantity || 0) }, (_, index) => ({
-    id: `${item.rowId}-${index}`,
-    item,
-    number: index + 1,
-  })));
-  return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-white p-6">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-5 flex items-center justify-between gap-3 print:hidden">
-          <div>
-            <h2 className="text-xl font-black text-zinc-950">Garment labels</h2>
-            <p className="text-sm text-zinc-500">{order.orderNumber} · {labels.length} labels</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => window.print()}><Printer size={17} /> Print</Button>
-            <Button onClick={onClose}>Close</Button>
-          </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {labels.map((label) => (
-            <div key={label.id} className="min-h-32 rounded-lg border-2 border-dashed border-zinc-400 p-4">
-              <p className="text-xl font-black text-zinc-950">{order.orderNumber}</p>
-              <p className="mt-1 text-sm font-semibold text-zinc-700">{order.customerName}</p>
-              <p className="mt-3 text-sm text-zinc-600">{label.item.shortCode} · {label.item.itemName}</p>
-              <p className="mt-1 text-sm text-zinc-600">Piece {label.number} of {label.item.itemCount || label.item.quantity}</p>
-              <p className="mt-3 text-xs font-bold uppercase text-zinc-500">{order.deliveryDate} · {order.deliveryTimeSlot}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function OrdersPage() {
-  const [orders, setOrders] = useState([]);
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("All");
-  const [receiptTarget, setReceiptTarget] = useState(null);
-  const [labelTarget, setLabelTarget] = useState(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function loadOrders() {
-      const nextOrders = await getOrders();
-      if (isMounted) setOrders(nextOrders);
-    }
-    loadOrders();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  async function updateOrderStatus(orderId, nextStatus) {
-    const savedOrder = await updateOrder(orderId, { status: nextStatus });
-    const nextOrders = orders.map((order) => order.id === orderId ? savedOrder : order);
-    await saveOrders(nextOrders);
-    setOrders(nextOrders);
-  }
-
-  async function saveReceipt(order, receipt) {
-    const data = await createPaymentReceipt(order.id, receipt);
-    const nextOrders = orders.map((current) => current.id === order.id ? data.order : current);
-    await saveOrders(nextOrders);
-    setOrders(nextOrders);
-    setReceiptTarget(null);
-  }
-
-  return (
-    <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking">
-      {(session, branch) => {
-        const branchOrders = orders
-          .filter((order) => order.branchId === branch.id)
-          .filter((order) => status === "All" || order.status === status)
-          .filter((order) => [order.orderNumber, order.customerName, order.customerPhone].join(" ").toLowerCase().includes(query.toLowerCase()));
-        return (
-          <div className="space-y-5">
-            <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
-              <div className="flex flex-1 items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
-                <Search size={18} className="text-zinc-400" />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full text-sm outline-none" placeholder="Search order, customer, phone" />
-              </div>
-              <SelectInput value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option>All</option>
-                {orderStatuses.map((item) => <option key={item}>{item}</option>)}
-              </SelectInput>
-              <Link href={`/branch/${branch.id}/orders/create`}><Button className="w-full lg:w-auto"><Plus size={17} /> Create order</Button></Link>
-            </div>
-            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
-              <div className="hidden min-w-[1120px] lg:block">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                    <tr>
-                      <th className="px-4 py-3">Order</th>
-                      <th className="px-4 py-3">Customer</th>
-                      <th className="px-4 py-3">Delivery</th>
-                      <th className="px-4 py-3">Items</th>
-                      <th className="px-4 py-3">Grand total</th>
-                      <th className="px-4 py-3">Payment</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200">
-                    {branchOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td className="px-4 py-4"><Link href={`/branch/${branch.id}/orders/${order.id}`} className="font-bold text-cyan-700 hover:text-cyan-900">{order.orderNumber}</Link></td>
-                        <td className="px-4 py-4"><p className="font-semibold text-zinc-900">{order.customerName}</p><p className="text-zinc-500">{order.customerPhone}</p></td>
-                        <td className="px-4 py-4 text-zinc-600">{order.deliveryDate}<br />{order.deliveryTimeSlot}</td>
-                        <td className="px-4 py-4 text-zinc-600">{order.itemCount} labels<br />Qty {order.totalItemQuantity}</td>
-                        <td className="px-4 py-4 font-bold text-zinc-950">{formatMoney(order.grandTotal)}</td>
-                        <td className="px-4 py-4"><Badge tone={order.paymentStatus}>{order.paymentStatus}</Badge><p className="mt-1 text-xs text-zinc-500">{formatMoney(order.paidAmount)} paid</p></td>
-                        <td className="px-4 py-4">
-                          <SelectInput value={order.status} onChange={(event) => updateOrderStatus(order.id, event.target.value)}>
-                            {orderStatuses.map((item) => <option key={item}>{item}</option>)}
-                          </SelectInput>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            <Button variant="secondary" onClick={() => setLabelTarget(order)}><Printer size={16} /></Button>
-                            {order.paymentStatus !== "Paid" ? <Button variant="secondary" onClick={() => setReceiptTarget(order)}><WalletCards size={16} /> Receipt</Button> : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="grid gap-3 p-3 lg:hidden">
-                {branchOrders.map((order) => (
-                  <div key={order.id} className="rounded-lg border border-zinc-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <Link href={`/branch/${branch.id}/orders/${order.id}`} className="font-bold text-cyan-700">{order.orderNumber}</Link>
-                        <p className="text-sm text-zinc-600">{order.customerName} · {order.customerPhone}</p>
-                      </div>
-                      <Badge tone={order.status}>{order.status}</Badge>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-sm text-zinc-600">
-                      <p>Delivery: {order.deliveryDate}, {order.deliveryTimeSlot}</p>
-                      <p>Labels: {order.itemCount} · Quantity: {order.totalItemQuantity}</p>
-                      <p className="font-bold text-zinc-950">Grand total: {formatMoney(order.grandTotal)}</p>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button variant="secondary" onClick={() => setLabelTarget(order)}><Printer size={16} /> Labels</Button>
-                      {order.paymentStatus !== "Paid" ? <Button variant="secondary" onClick={() => setReceiptTarget(order)}><WalletCards size={16} /> Receipt</Button> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {!branchOrders.length ? <EmptyState title="No orders found" body="Create a work order to start tracking items, labels, delivery, and payments." action={<Link href={`/branch/${branch.id}/orders/create`}><Button>Create order</Button></Link>} /> : null}
-            </div>
-            {receiptTarget ? <AddReceiptModal order={receiptTarget} onCancel={() => setReceiptTarget(null)} onSave={(receipt) => saveReceipt(receiptTarget, receipt)} /> : null}
-            {labelTarget ? <LabelPrintView order={labelTarget} onClose={() => setLabelTarget(null)} /> : null}
-          </div>
-        );
-      }}
-    </BranchModuleShell>
-  );
+  return <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking">
+    {(session, branch) => <OrdersWorkspace key={branch.id} branchId={branch.id} />}
+  </BranchModuleShell>;
 }
 
 export function CreateOrderPage() {
   const router = useRouter();
+  const branchId = useBranchIdFromPath();
   const [customers, setCustomers] = useState([]);
   const [serviceItems, setServiceItems] = useState([]);
   const [timeSlots, setTimeSlots] = useState([]);
+  const [timeSlotsError, setTimeSlotsError] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [errors, setErrors] = useState({});
   const [form, setForm] = useState({
@@ -1744,18 +1591,28 @@ export function CreateOrderPage() {
   useEffect(() => {
     let isMounted = true;
     async function loadCreateOrderData() {
-      const [nextCustomers, nextServiceItems, nextTimeSlots] = await Promise.all([getCustomers(), getServiceItems(), getTimeSlots()]);
-      if (isMounted) {
-        setCustomers(nextCustomers);
-        setServiceItems(nextServiceItems);
-        setTimeSlots(nextTimeSlots);
+      try {
+        const [nextCustomers, nextServiceItems, branches] = await Promise.all([getCustomers(), getServiceItems(), getBranches()]);
+        const branch = branches.find((item) => item.id === branchId);
+        const nextTimeSlots = branch ? await getTimeSlots(branch.laundryId) : [];
+        if (isMounted) {
+          setCustomers(nextCustomers);
+          setServiceItems(nextServiceItems);
+          setTimeSlots(nextTimeSlots);
+          setTimeSlotsError(branch ? "" : "The current branch could not be found.");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setTimeSlots([]);
+          setTimeSlotsError(getApiErrorMessage(error, "Could not load delivery time slots."));
+        }
       }
     }
     loadCreateOrderData();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [branchId]);
 
   const totals = useMemo(() => {
     const rows = form.items.map((row) => ({ ...row, itemTotal: Number(row.quantity || 0) * Number(row.unitPrice || 0) }));
@@ -1847,9 +1704,11 @@ export function CreateOrderPage() {
                   <Field label="Delivery date" error={errors.deliveryDate}><TextInput type="date" value={form.deliveryDate} onChange={(event) => setForm((current) => ({ ...current, deliveryDate: event.target.value }))} error={errors.deliveryDate} /></Field>
                   <Field label="Delivery time slot" error={errors.deliveryTimeSlot}>
                     <SelectInput value={form.deliveryTimeSlot} onChange={(event) => setForm((current) => ({ ...current, deliveryTimeSlot: event.target.value }))} error={errors.deliveryTimeSlot}>
-                      <option value="">Choose slot</option>
+                      <option value="">{timeSlotsError ? "Unable to load slots" : "Choose slot"}</option>
                       {activeSlots.map((slot) => <option key={slot.id}>{slot.label}</option>)}
                     </SelectInput>
+                    {timeSlotsError ? <p role="alert" className="mt-2 text-sm text-rose-700">{timeSlotsError}</p> : null}
+                    {!timeSlotsError && !activeSlots.length ? <p role="status" className="mt-2 text-sm text-amber-700">No active delivery slots are configured for this laundry.</p> : null}
                   </Field>
                 </div>
               </section>
@@ -1905,6 +1764,14 @@ export function OrderDetailsPage() {
   const [order, setOrder] = useState(null);
   const [receipts, setReceipts] = useState([]);
   const [showLabels, setShowLabels] = useState(false);
+  const [showBill, setShowBill] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  async function saveDetailReceipt(receipt) {
+    const data = await createPaymentReceipt(order.id, receipt);
+    setOrder(data.order);
+    setReceipts(await getPaymentReceipts(order.id));
+    setShowReceipt(false);
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -1937,7 +1804,11 @@ export function OrderDetailsPage() {
                   <p className="mt-1 text-sm text-zinc-500">{order.customerName} · {order.customerPhone}</p>
                   <div className="mt-3 flex flex-wrap gap-2"><Badge tone={order.status}>{order.status}</Badge><Badge tone={order.paymentStatus}>{order.paymentStatus}</Badge></div>
                 </div>
-                <Button onClick={() => setShowLabels(true)}><Printer size={17} /> Print labels</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => setShowBill(true)}><Printer size={17} /> Print bill</Button>
+                  <Button onClick={() => setShowLabels(true)}><Tag size={17} /> Print labels</Button>
+                  {order.paymentStatus !== "Paid" ? <Button variant="secondary" onClick={() => setShowReceipt(true)}><WalletCards size={17} /> Receipt</Button> : null}
+                </div>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-4">
                 <Info label="Delivery date" value={order.deliveryDate} />
@@ -1967,7 +1838,9 @@ export function OrderDetailsPage() {
                 {!receipts.length ? <p className="text-sm text-zinc-500">No receipts have been added yet.</p> : null}
               </div>
             </section>
-            {showLabels ? <LabelPrintView order={order} onClose={() => setShowLabels(false)} /> : null}
+            {showBill ? <BillPrintDialog order={order} onClose={() => setShowBill(false)} /> : null}
+            {showReceipt ? <AddReceiptModal order={order} onCancel={() => setShowReceipt(false)} onSave={saveDetailReceipt} /> : null}
+            {showLabels ? <LabelPrintDialog order={order} onClose={() => setShowLabels(false)} /> : null}
           </div>
         );
       }}
