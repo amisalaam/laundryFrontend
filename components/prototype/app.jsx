@@ -653,12 +653,17 @@ export function LaundriesPage() {
   const [status, setStatus] = useState("All");
   const [sortBy, setSortBy] = useState("name");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
     async function loadLaundries() {
-      const nextLaundries = await getLaundries();
-      if (isMounted) setLaundries(nextLaundries);
+      try {
+        const nextLaundries = await getLaundries();
+        if (isMounted) setLaundries(nextLaundries);
+      } catch (error) {
+        if (isMounted) setLoadError(getApiErrorMessage(error));
+      }
     }
     loadLaundries();
     return () => {
@@ -693,6 +698,7 @@ export function LaundriesPage() {
     <AppShell type="super-admin" title="Laundry Businesses" subtitle="Search, filter, sort, edit, activate, and delete laundry accounts">
       {() => (
         <div className="space-y-5">
+          {loadError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{loadError}</p> : null}
           <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
             <div className="flex flex-1 items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
               <Search size={18} className="text-zinc-400" />
@@ -842,6 +848,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [success, setSuccess] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
 
@@ -851,6 +858,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
   }
 
   async function save(isDraft = false) {
+    setSaveError("");
     const nextErrors = validateLaundryForm(form, isDraft);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -858,11 +866,13 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
     try {
       const payload = { ...form, status: isDraft ? "Inactive" : form.status };
       const data = form.id ? await api.patch(`/laundries/${form.id}/`, payload) : await api.post("/laundries/", payload);
+      setForm((current) => ({ ...current, id: data.laundry.id }));
       setIsSaving(false);
       setSuccess(isDraft ? "Laundry saved as inactive." : "Laundry business and owner saved.");
       if (mode === "create" && !isDraft) router.push(`/super-admin/laundries/${data.laundry.id}`);
     } catch (error) {
       setErrors(error.fields || {});
+      setSaveError(getApiErrorMessage(error));
       setSuccess("");
       setIsSaving(false);
     }
@@ -870,6 +880,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
 
   return (
     <div className="space-y-5">
+      {saveError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{saveError}</p> : null}
       {success ? <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> {success}</div> : null}
       <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-zinc-950">Laundry information</h2>
