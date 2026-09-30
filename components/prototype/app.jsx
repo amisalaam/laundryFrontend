@@ -600,17 +600,15 @@ function AppShell({ type, title, subtitle, children }) {
   const [branches, setBranchesState] = useState(() => getCachedBranches() || []);
   const isSettingsArea = type === "business" && pathname.startsWith("/settings");
   const isOwner = session?.role === "Laundry Owner";
-  const settingsPermission = { "Branch Management": "branch.view", "Create Branch": "branch.add", "Item Groups": "item_group.view", "Items": "item.view", "Time Slots": "time_slot.view", "Staff Management": "staff_management.view" };
+  const settingsPermission = { "Branch Management": "branch.view", "Create Branch": "branch.add", "Item Groups": "item_group.view", "Items": "item.view", "Time Slots": "time_slot.view" };
   const settingsLinks = [
     { href: "/settings/branches", label: "Branch Management", icon: Store },
     { href: "/settings/branches/create", label: "Create Branch", icon: Plus },
     { href: "/settings/item-groups", label: "Item Groups", icon: Tag },
     { href: "/settings/items", label: "Items", icon: PackageCheck },
     { href: "/settings/time-slots", label: "Time Slots", icon: Clock3 },
-    { href: "/settings/staff", label: "Staff Management", icon: Users },
   ];
   const visibleSettingsLinks = settingsLinks.filter((link) => isOwner || Boolean(settingsPermission[link.label] && session?.permissions?.includes(settingsPermission[link.label])));
-  const settingsHome = visibleSettingsLinks[0]?.href || "/home";
   const links = type === "super-admin"
     ? [
         { href: "/super-admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -628,8 +626,8 @@ function AppShell({ type, title, subtitle, children }) {
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/orders` : "/home", label: "Orders", icon: ClipboardList },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/customers` : "/home", label: "Customers", icon: Users },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/delivery` : "/home", label: "Delivery", icon: Truck },
-        ...(visibleSettingsLinks.length ? [{ href: settingsHome, label: "Settings", icon: Settings }] : []),
-      ].filter((link) => link.type === "heading" || link.label === "Settings" || isOwner || ({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view"}[link.label] && session?.permissions?.includes({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view"}[link.label])));
+        { href: "/staff", label: "Staff Management", icon: Users },
+      ].filter((link) => link.type === "heading" || isOwner || ({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view","Staff Management":"staff_management.view"}[link.label] && session?.permissions?.includes({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view","Staff Management":"staff_management.view"}[link.label])));
 
   useEffect(() => {
     let isMounted = true;
@@ -1706,7 +1704,7 @@ export function CreateOrderPage() {
   return (
     <BranchModuleShell title="Create Order" subtitle="Select customer, choose configured items, calculate totals, and prepare labels" requiredPermission="orders.add">
       {(session, branch) => {
-        const branchCustomers = customers.filter((customer) => customer.branchId === branch.id || customer.laundryId === branch.laundryId);
+        const branchCustomers = customers.filter((customer) => customer.branchId === branch.id);
         const activeItems = serviceItems.filter((item) => item.laundryId === branch.laundryId && item.status === "Active");
         const activeSlots = timeSlots.filter((slot) => slot.laundryId === branch.laundryId && slot.status === "Active");
         return (
@@ -1906,7 +1904,7 @@ export function CustomersPage() {
     <BranchModuleShell title="Customers" subtitle="Customer directory used by Create Order auto-fill" requiredPermission="customers.view">
       {(session, branch) => {
         const branchCustomers = customers
-          .filter((customer) => customer.branchId === branch.id || customer.laundryId === branch.laundryId)
+          .filter((customer) => customer.branchId === branch.id)
           .filter((customer) => [customer.name, customer.phone, customer.email].join(" ").toLowerCase().includes(query.toLowerCase()));
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">

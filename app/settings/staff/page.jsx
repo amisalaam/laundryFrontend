@@ -1,2 +1,5 @@
-import { SettingsStaffPage } from "@/components/prototype/app";
-export default function Page() { return <SettingsStaffPage />; }
+import { redirect } from "next/navigation";
+
+export default function Page() {
+  redirect("/staff");
+}
