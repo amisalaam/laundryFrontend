@@ -15,7 +15,7 @@ function matches(order: Order, tab: Tab) { return tab === "Under Processing" ? o
 const money = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
 const iconButton = "inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500";
 
-function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDelivery }: { order: Order; onAction: (action: Action) => void; onBill: () => void; onLabels: () => void; onReceipt: () => void; onMoveToDelivery: () => void }) {
+function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDelivery, permissions, deliveryPermissions }: { order: Order; onAction: (action: Action) => void; onBill: () => void; onLabels: () => void; onReceipt: () => void; onMoveToDelivery: () => void; permissions?: Record<string, boolean>; deliveryPermissions?: Record<string, boolean> }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -38,11 +38,11 @@ function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDeliver
   function select(action: Action) { dismiss(); onAction(action); }
   const item = "block w-full rounded-md px-3 py-2.5 text-left text-sm hover:bg-zinc-100 focus:bg-zinc-100 focus:outline-none";
   return <div className="flex items-center justify-start gap-1">
-    {pending && <button type="button" onClick={() => onAction("process")} className={iconButton} title="Process Order" aria-label={`Process order ${order.orderNumber}`}><PackageCheck size={19} className="shrink-0" /></button>}
-    {processing && <button type="button" onClick={onMoveToDelivery} className={iconButton} title="Move to Delivery" aria-label={`Move ${order.orderNumber} to delivery`}><Truck size={19} className="shrink-0" /></button>}
+    {pending && permissions?.edit !== false && <button type="button" onClick={() => onAction("process")} className={iconButton} title="Process Order" aria-label={`Process order ${order.orderNumber}`}><PackageCheck size={19} className="shrink-0" /></button>}
+    {processing && deliveryPermissions?.edit !== false && <button type="button" onClick={onMoveToDelivery} className={iconButton} title="Move to Delivery" aria-label={`Move ${order.orderNumber} to delivery`}><Truck size={19} className="shrink-0" /></button>}
     <button type="button" onClick={onBill} className={iconButton} title="Print bill" aria-label={`Print bill for ${order.orderNumber}`}><Printer size={19} className="shrink-0" /></button>
     <button type="button" onClick={onLabels} className={iconButton} title="Print labels" aria-label={`Print labels for ${order.orderNumber}`}><Tag size={19} className="shrink-0" /></button>
-    {order.paymentStatus !== "Paid" && <button type="button" onClick={onReceipt} className={iconButton} title="Receipt" aria-label={`Receipt for ${order.orderNumber}`}><WalletCards size={19} className="shrink-0" /></button>}
+    {order.paymentStatus !== "Paid" && permissions?.edit !== false && <button type="button" onClick={onReceipt} className={iconButton} title="Receipt" aria-label={`Receipt for ${order.orderNumber}`}><WalletCards size={19} className="shrink-0" /></button>}
     <button ref={trigger} type="button" className={iconButton} title="Order actions" aria-label={`Actions for ${order.orderNumber}`} aria-haspopup="menu" aria-expanded={!!position} onClick={() => {
       if (position) { dismiss(); return; }
       const rect = trigger.current!.getBoundingClientRect();
@@ -58,14 +58,14 @@ function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDeliver
         items[next]?.focus();
       }
     }}>
-      {pending && <><button role="menuitem" className={item} onClick={() => select("cancel")}>Cancel Order</button><button role="menuitem" className={item} onClick={() => select("edit")}>Edit Order</button><button role="menuitem" className={`${item} text-rose-700`} onClick={() => select("delete")}>Delete Order</button></>}
+      {pending && <>{permissions?.edit !== false && <><button role="menuitem" className={item} onClick={() => select("cancel")}>Cancel Order</button><button role="menuitem" className={item} onClick={() => select("edit")}>Edit Order</button></>}{permissions?.delete !== false && <button role="menuitem" className={`${item} text-rose-700`} onClick={() => select("delete")}>Delete Order</button>}</>}
       <Link role="menuitem" className={item} href={`/branch/${order.branchId}/orders/${order.id}`} onClick={dismiss}>View Order</Link>
-      {!cancelled && <button role="menuitem" className={item} onClick={() => select("discount")}>Cash Discount</button>}
+      {!cancelled && permissions?.edit !== false && <button role="menuitem" className={item} onClick={() => select("discount")}>Cash Discount</button>}
     </div>, document.body)}
   </div>;
 }
 
-export default function OrdersWorkspace({ branchId }: { branchId: string }) {
+export default function OrdersWorkspace({ branchId, permissions, deliveryPermissions }: { branchId: string; permissions?: Record<string, boolean>; deliveryPermissions?: Record<string, boolean> }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [tab, setTab] = useState<Tab>("Pending");
   const [query, setQuery] = useState("");
@@ -110,11 +110,11 @@ export default function OrdersWorkspace({ branchId }: { branchId: string }) {
       setNotice(`${saved.orderNumber} moved to Delivery → Pending.`);
     } catch (issue) { setError(errorMessage(issue)); }
   }
-  function actions(order: Order) { return <Actions order={order} onAction={(action) => setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => moveToDelivery(order)} />; }
+  function actions(order: Order) { return <Actions order={order} onAction={(action) => setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => moveToDelivery(order)} permissions={permissions} deliveryPermissions={deliveryPermissions} />; }
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
       <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2"><Search size={18} className="shrink-0 text-zinc-400" /><span className="sr-only">Search orders</span><input className="min-w-0 w-full text-sm outline-none" placeholder="Search order, customer, phone" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-      <Link href={`/branch/${branchId}/orders/create`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={17} />Create order</Link>
+      {permissions?.add !== false && <Link href={`/branch/${branchId}/orders/create`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={17} />Create order</Link>}
     </div>
     <div role="tablist" aria-label="Order status" className="flex gap-1 overflow-x-auto border-b border-zinc-200" onKeyDown={(event) => {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;

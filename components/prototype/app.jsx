@@ -6,6 +6,7 @@ import BillPrintDialog from "./bill-print-dialog";
 import LabelPrintDialog from "./label-print-dialog";
 import OrdersWorkspace from "./orders-workspace";
 import DeliveryWorkspace from "./delivery-workspace";
+import StaffManagement from "./staff-management";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -45,7 +46,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { authenticate, can, getAccessibleBranches, getCachedSession, getSession, logout, setSession, updateCurrentBranch } from "@/lib/auth";
+import { authenticate, can, getAccessibleBranches, getCachedSession, getSession, logout, refreshSession, setSession, updateCurrentBranch } from "@/lib/auth";
 import {
   createBranch,
   createCustomer,
@@ -422,6 +423,22 @@ function useProtectedSession(expectedType) {
   const [isReady, setIsReady] = useState(Boolean(cachedSession));
 
   useEffect(() => {
+    if (!session?.id) return undefined;
+    let isMounted = true;
+    async function refreshPermissions() {
+      const latestSession = await refreshSession();
+      if (!isMounted) return;
+      if (!latestSession || latestSession.loginType !== expectedType) {
+        router.replace(expectedType === "super-admin" ? "/super-admin/login" : "/login");
+        return;
+      }
+      setSessionState(latestSession);
+    }
+    const timer = window.setInterval(refreshPermissions, 10000);
+    return () => { isMounted = false; window.clearInterval(timer); };
+  }, [expectedType, router, session?.id]);
+
+  useEffect(() => {
     let isMounted = true;
     async function loadSession() {
       if (session?.loginType === expectedType) {
@@ -582,6 +599,18 @@ function AppShell({ type, title, subtitle, children }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [branches, setBranchesState] = useState(() => getCachedBranches() || []);
   const isSettingsArea = type === "business" && pathname.startsWith("/settings");
+  const isOwner = session?.role === "Laundry Owner";
+  const settingsPermission = { "Branch Management": "branch.view", "Create Branch": "branch.add", "Item Groups": "item_group.view", "Items": "item.view", "Time Slots": "time_slot.view", "Staff Management": "staff_management.view" };
+  const settingsLinks = [
+    { href: "/settings/branches", label: "Branch Management", icon: Store },
+    { href: "/settings/branches/create", label: "Create Branch", icon: Plus },
+    { href: "/settings/item-groups", label: "Item Groups", icon: Tag },
+    { href: "/settings/items", label: "Items", icon: PackageCheck },
+    { href: "/settings/time-slots", label: "Time Slots", icon: Clock3 },
+    { href: "/settings/staff", label: "Staff Management", icon: Users },
+  ];
+  const visibleSettingsLinks = settingsLinks.filter((link) => isOwner || Boolean(settingsPermission[link.label] && session?.permissions?.includes(settingsPermission[link.label])));
+  const settingsHome = visibleSettingsLinks[0]?.href || "/home";
   const links = type === "super-admin"
     ? [
         { href: "/super-admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -591,20 +620,16 @@ function AppShell({ type, title, subtitle, children }) {
     : isSettingsArea
       ? [
         { href: "/home", label: "Business Home", icon: Store },
-        { type: "heading", label: "Settings" },
-        { href: "/settings/branches", label: "Branch Management", icon: Store },
-        { href: "/settings/branches/create", label: "Create Branch", icon: Plus },
-        { href: "/settings/item-groups", label: "Item Groups", icon: Tag },
-        { href: "/settings/items", label: "Items", icon: PackageCheck },
-        { href: "/settings/time-slots", label: "Time Slots", icon: Clock3 },
-      ].filter((link) => link.type === "heading" || link.label !== "Create Branch" || can(session, "create_branch"))
+        ...(visibleSettingsLinks.length ? [{ type: "heading", label: "Settings" }, ...visibleSettingsLinks] : []),
+      ]
       : [
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/dashboard` : "/home", label: "Dashboard", icon: LayoutDashboard },
         { type: "heading", label: "Operations" },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/orders` : "/home", label: "Orders", icon: ClipboardList },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/customers` : "/home", label: "Customers", icon: Users },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/delivery` : "/home", label: "Delivery", icon: Truck },
-      ].filter((link) => link.type === "heading" || link.label !== "Create Branch" || can(session, "create_branch"));
+        ...(visibleSettingsLinks.length ? [{ href: settingsHome, label: "Settings", icon: Settings }] : []),
+      ].filter((link) => link.type === "heading" || link.label === "Settings" || isOwner || ({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view"}[link.label] && session?.permissions?.includes({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view"}[link.label])));
 
   useEffect(() => {
     let isMounted = true;
@@ -1216,13 +1241,17 @@ export function BranchSelectionPage() {
           </div>
         </header>
         {(() => {
+        const settingsRoutes = [
+          ["branch.view", "/settings/branches"], ["branch.add", "/settings/branches/create"], ["item_group.view", "/settings/item-groups"], ["item.view", "/settings/items"], ["time_slot.view", "/settings/time-slots"], ["staff_management.view", "/settings/staff"],
+        ];
+        const settingsHref = settingsRoutes.find(([permission]) => can(session, permission))?.[1];
         function openBranch(branchId) {
           updateCurrentBranch(branchId);
           router.push(`/branch/${branchId}/dashboard`);
         }
         return (
           <div className="space-y-5">
-            {can(session, "create_branch") ? (
+            {settingsHref ? (
               <section className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cyan-50 text-cyan-700"><Settings size={20} /></span>
@@ -1231,7 +1260,7 @@ export function BranchSelectionPage() {
                     <p className="mt-1 text-sm text-zinc-500">Manage branches, service items, item groups, and delivery time slots in one place.</p>
                   </div>
                 </div>
-                <Link href="/settings/branches"><Button variant="secondary"><Settings size={17} /> Manage settings</Button></Link>
+                <Link href={settingsHref}><Button variant="secondary"><Settings size={17} /> Manage settings</Button></Link>
               </section>
             ) : null}
             {branches.length ? (
@@ -1242,7 +1271,7 @@ export function BranchSelectionPage() {
               <EmptyState
                 title="You don't have any branches"
                 body="Use Business Settings to create your first branch. Dashboard, orders, and customers will become available afterward."
-                action={can(session, "create_branch") ? (
+                action={can(session, "branch.add") ? (
                   <Link href="/settings/branches/create"><Button><Plus size={17} /> Create first branch</Button></Link>
                 ) : null}
               />
@@ -1294,7 +1323,7 @@ export function CreateBranchPage() {
   return (
     <AppShell type="business" title="Create Branch" subtitle="Add branch operating details and open the dashboard immediately">
       {(session) => {
-        if (!can(session, "create_branch")) return <EmptyState title="Branch creation is not available" body="Your role can work inside assigned branches but cannot create new ones." />;
+        if (!can(session, "branch.add")) return <EmptyState title="Branch creation is not available" body="Your role can work inside assigned branches but cannot create new ones." />;
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             {submitError ? <div role="alert" className="mb-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700"><AlertTriangle size={18} /> {submitError}</div> : null}
@@ -1462,21 +1491,22 @@ function useBranchIdFromPath() {
   return getBranchPath(usePathname());
 }
 
-function BranchModuleShell({ title, subtitle, children }) {
+function BranchModuleShell({ title, subtitle, requiredPermission, children }) {
   const branchId = useBranchIdFromPath();
   return (
     <AppShell type="business" title={title} subtitle={subtitle}>
       {(session) => {
+        if (requiredPermission && !can(session, requiredPermission)) return <EmptyState title="Access denied" body="You do not have permission to open this page." />;
         return <BranchScope session={session} branchId={branchId}>{children}</BranchScope>;
       }}
     </AppShell>
   );
 }
 
-function BusinessSettingsShell({ title, subtitle, children }) {
+function BusinessSettingsShell({ title, subtitle, requiredPermission, children }) {
   return (
     <AppShell type="business" title={title} subtitle={subtitle}>
-      {(session) => children(session, { laundryId: session.laundryId })}
+      {(session) => requiredPermission && !can(session, requiredPermission) ? <EmptyState title="Access denied" body="You do not have permission to open this page." /> : typeof children === "function" ? children(session, { laundryId: session.laundryId }) : children}
     </AppShell>
   );
 }
@@ -1568,13 +1598,13 @@ function AddReceiptModal({ order, onCancel, onSave }) {
 
 
 export function OrdersPage() {
-  return <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking">
-    {(session, branch) => <OrdersWorkspace key={branch.id} branchId={branch.id} />}
+  return <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking" requiredPermission="orders.view">
+    {(session, branch) => <OrdersWorkspace key={branch.id} branchId={branch.id} permissions={session.permissionMatrix?.orders} deliveryPermissions={session.permissionMatrix?.delivery} />}
   </BranchModuleShell>;
 }
 
 export function DeliveryPage() {
-  return <BranchModuleShell title="Delivery" subtitle="Manage pending and completed customer deliveries">
+  return <BranchModuleShell title="Delivery" subtitle="Manage pending and completed customer deliveries" requiredPermission="delivery.view">
     {(session, branch) => <DeliveryWorkspace key={branch.id} branchId={branch.id} />}
   </BranchModuleShell>;
 }
@@ -1674,7 +1704,7 @@ export function CreateOrderPage() {
   }
 
   return (
-    <BranchModuleShell title="Create Order" subtitle="Select customer, choose configured items, calculate totals, and prepare labels">
+    <BranchModuleShell title="Create Order" subtitle="Select customer, choose configured items, calculate totals, and prepare labels" requiredPermission="orders.add">
       {(session, branch) => {
         const branchCustomers = customers.filter((customer) => customer.branchId === branch.id || customer.laundryId === branch.laundryId);
         const activeItems = serviceItems.filter((item) => item.laundryId === branch.laundryId && item.status === "Active");
@@ -1800,7 +1830,7 @@ export function OrderDetailsPage() {
   }, [orderId]);
 
   return (
-    <BranchModuleShell title={order?.orderNumber || "Order Details"} subtitle="Work order details, items, receipts, and printable labels">
+    <BranchModuleShell title={order?.orderNumber || "Order Details"} subtitle="Work order details, items, receipts, and printable labels" requiredPermission="orders.view">
       {(session, branch) => {
         if (!order) return <EmptyState title="Order not found" body="This work order is not available to the current account." action={<Link href={`/branch/${branch.id}/orders`}><Button>Back to orders</Button></Link>} />;
         return (
@@ -1873,7 +1903,7 @@ export function CustomersPage() {
   }, []);
 
   return (
-    <BranchModuleShell title="Customers" subtitle="Customer directory used by Create Order auto-fill">
+    <BranchModuleShell title="Customers" subtitle="Customer directory used by Create Order auto-fill" requiredPermission="customers.view">
       {(session, branch) => {
         const branchCustomers = customers
           .filter((customer) => customer.branchId === branch.id || customer.laundryId === branch.laundryId)
@@ -1887,7 +1917,7 @@ export function CustomersPage() {
                   <Search size={17} className="text-zinc-400" />
                   <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full text-sm outline-none" placeholder="Search customers" />
                 </div>
-                <Link href={`/branch/${branch.id}/customers/create`}><Button><UserPlus size={17} /> Create customer</Button></Link>
+                {can(session, "customers.add") ? <Link href={`/branch/${branch.id}/customers/create`}><Button><UserPlus size={17} /> Create customer</Button></Link> : null}
               </div>
             </div>
             <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
@@ -1942,7 +1972,7 @@ export function CreateCustomerPage() {
   }
 
   return (
-    <BranchModuleShell title="Create Customer" subtitle="Add a customer for this branch">
+    <BranchModuleShell title="Create Customer" subtitle="Add a customer for this branch" requiredPermission="customers.add">
       {(session, branch) => (
         <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-2">
@@ -1971,11 +2001,13 @@ function useSettingsData() {
     async function loadSettingsData() {
       const session = await getSession();
       if (!session?.laundryId) return;
-      const [nextGroups, nextItems, nextSlots] = await Promise.all([getItemGroups(session.laundryId), getServiceItems(session.laundryId), getTimeSlots(session.laundryId)]);
+      // Each settings screen may be permitted independently. A denied Item Group or
+      // Time Slot request must not prevent an allowed Items request from rendering.
+      const results = await Promise.allSettled([getItemGroups(session.laundryId), getServiceItems(session.laundryId), getTimeSlots(session.laundryId)]);
       if (isMounted) {
-        setGroups(nextGroups);
-        setItems(nextItems);
-        setSlots(nextSlots);
+        setGroups(results[0].status === "fulfilled" ? results[0].value : []);
+        setItems(results[1].status === "fulfilled" ? results[1].value : []);
+        setSlots(results[2].status === "fulfilled" ? results[2].value : []);
       }
     }
     loadSettingsData();
@@ -2023,7 +2055,7 @@ export function SettingsBranchManagementPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Branch Management" subtitle="Manage every branch in this laundry business">
+    <BusinessSettingsShell title="Branch Management" subtitle="Manage every branch in this laundry business" requiredPermission="branch.view">
       {(session, business) => {
         const businessBranches = branches
           .filter((branch) => branch.laundryId === business.laundryId)
@@ -2044,7 +2076,7 @@ export function SettingsBranchManagementPage() {
                   <option>Active</option>
                   <option>Inactive</option>
                 </SelectInput>
-                {can(session, "create_branch") ? <Link href="/settings/branches/create"><Button><Plus size={17} /> Create branch</Button></Link> : null}
+                {can(session, "branch.add") ? <Link href="/settings/branches/create"><Button><Plus size={17} /> Create branch</Button></Link> : null}
               </div>
             </div>
             <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
@@ -2070,7 +2102,7 @@ export function SettingsBranchManagementPage() {
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
                           <Button variant="secondary" onClick={() => openBranch(branch.id)}>Open</Button>
-                          {can(session, "create_branch") ? <Button variant="secondary" onClick={() => toggleBranch(branch.id)}>{branch.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}
+                          {can(session, "branch.edit") ? <Button variant="secondary" onClick={() => toggleBranch(branch.id)}>{branch.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}
                         </div>
                       </td>
                     </tr>
@@ -2085,6 +2117,8 @@ export function SettingsBranchManagementPage() {
     </BusinessSettingsShell>
   );
 }
+
+export function SettingsStaffPage() { return <BusinessSettingsShell title="Staff Management" subtitle="Create staff, assign their branch, and set permissions" requiredPermission="staff_management.view"><StaffManagement /></BusinessSettingsShell>; }
 
 export function SettingsItemGroupsPage() {
   const { groups, setGroups } = useSettingsData();
@@ -2110,7 +2144,7 @@ export function SettingsItemGroupsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Item Groups" subtitle="Create and manage item groups used across the laundry business">
+    <BusinessSettingsShell title="Item Groups" subtitle="Create and manage item groups used across the laundry business" requiredPermission="item_group.view">
       {(session, business) => {
         const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
         return (
@@ -2130,13 +2164,13 @@ export function SettingsItemGroupsPage() {
                     <tr key={group.id}>
                       <td className="px-4 py-4 font-bold text-zinc-950">{group.name}</td>
                       <td className="px-4 py-4"><Badge tone={group.status}>{group.status}</Badge></td>
-                      <td className="px-4 py-4"><Button variant="secondary" onClick={() => toggleGroup(group.id)}>{group.status === "Active" ? "Deactivate" : "Activate"}</Button></td>
+                      <td className="px-4 py-4">{can(session, "item_group.edit") ? <Button variant="secondary" onClick={() => toggleGroup(group.id)}>{group.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <Button className="mt-5" onClick={() => setShowGroupForm((value) => !value)}><Plus size={17} /> Create item group</Button>
+            {can(session, "item_group.add") ? <Button className="mt-5" onClick={() => setShowGroupForm((value) => !value)}><Plus size={17} /> Create item group</Button> : null}
             {showGroupForm ? (
               <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
                 <TextInput value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Group name, e.g. Dry Cleaning" />
@@ -2175,7 +2209,7 @@ export function SettingsItemsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types">
+    <BusinessSettingsShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types" requiredPermission="item.view">
       {(session, business) => {
         const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
         const businessItems = items.filter((item) => item.laundryId === business.laundryId);
@@ -2206,14 +2240,14 @@ export function SettingsItemsPage() {
                         <td className="px-4 py-4 text-zinc-600">{item.unitType}</td>
                         <td className="px-4 py-4 font-bold text-zinc-950">{formatMoney(item.price)}</td>
                         <td className="px-4 py-4"><Badge tone={item.status}>{item.status}</Badge></td>
-                        <td className="px-4 py-4"><Button variant="secondary" onClick={() => toggleItem(item.id)}>{item.status === "Active" ? "Deactivate" : "Activate"}</Button></td>
+                        <td className="px-4 py-4">{can(session, "item.edit") ? <Button variant="secondary" onClick={() => toggleItem(item.id)}>{item.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <Button className="mt-5" onClick={() => setShowItemForm((value) => !value)}><Plus size={17} /> Create item</Button>
+            {can(session, "item.add") ? <Button className="mt-5" onClick={() => setShowItemForm((value) => !value)}><Plus size={17} /> Create item</Button> : null}
             {showItemForm ? (
               <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
                 <div className="grid gap-4 md:grid-cols-3">
@@ -2279,7 +2313,7 @@ export function SettingsTimeSlotsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Time Slots" subtitle="Create and manage delivery time slots used across all branches">
+    <BusinessSettingsShell title="Time Slots" subtitle="Create and manage delivery time slots used across all branches" requiredPermission="time_slot.view">
       {(session, business) => {
         const businessSlots = slots.filter((slot) => slot.laundryId === business.laundryId);
         return (
@@ -2299,13 +2333,13 @@ export function SettingsTimeSlotsPage() {
                     <tr key={slot.id}>
                       <td className="px-4 py-4 font-bold text-zinc-950">{slot.label}</td>
                       <td className="px-4 py-4"><Badge tone={slot.status}>{slot.status}</Badge></td>
-                      <td className="px-4 py-4"><Button variant="secondary" onClick={() => toggleSlot(slot.id)}>{slot.status === "Active" ? "Deactivate" : "Activate"}</Button></td>
+                      <td className="px-4 py-4">{can(session, "time_slot.edit") ? <Button variant="secondary" onClick={() => toggleSlot(slot.id)}>{slot.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <Button className="mt-5" onClick={() => setShowSlotForm((value) => !value)}><Plus size={17} /> Create time slot</Button>
+            {can(session, "time_slot.add") ? <Button className="mt-5" onClick={() => setShowSlotForm((value) => !value)}><Plus size={17} /> Create time slot</Button> : null}
             {showSlotForm ? (
               <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
                 <TextInput value={slotLabel} onChange={(event) => setSlotLabel(event.target.value)} placeholder="Example: 06:00 PM - 08:00 PM" />
