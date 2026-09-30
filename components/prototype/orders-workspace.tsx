@@ -141,7 +141,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
           { key: "actions", label: "Actions", headerClassName: "w-44", cellClassName: "w-44 whitespace-nowrap", render: (order: Order) => actions(order) },
         ]} />
       </>}
-      {!loading && <div className="border-t border-slate-200 bg-slate-50/50 px-5 py-3 text-xs text-slate-500">{query ? "Results match your search in the selected status." : "Select an order number to view its details."}</div>}
+
     </div>
     {target && <OrderDialog key={`${target.order.id}-${target.action}`} {...target} onClose={() => setTarget(null)} onSave={save} />}
     {billTarget && <BillPrintDialog order={billTarget} onClose={() => setBillTarget(null)} />}

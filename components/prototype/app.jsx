@@ -1910,7 +1910,7 @@ export function CustomersPage() {
                 { key: "address", label: "Address", cellClassName: "max-w-64 truncate text-slate-600", render: (customer) => customer.address || "—" },
                 { key: "actions", label: "Actions", headerClassName: "w-20", cellClassName: "w-20 whitespace-nowrap", render: (customer) => <div className="inline-flex gap-1">{can(session, "customers.edit") ? <TableActionButton label={`Edit ${customer.name}`} onClick={() => { setError(""); setEditingCustomer(customer); }}><Pencil size={15} /></TableActionButton> : null}{can(session, "customers.delete") ? <TableActionButton label={`Delete ${customer.name}`} onClick={() => removeCustomer(customer)}><Trash2 size={15} /></TableActionButton> : null}</div> },
               ]} />
-              <div className="border-t border-slate-200 bg-slate-50/50 px-4 py-3 text-xs text-slate-500">Use the action icons to edit or remove a customer.</div>
+             
             </section>
             {editingCustomer ? <CustomerEditDialog customer={editingCustomer} onClose={() => setEditingCustomer(null)} onSave={saveCustomer} /> : null}
           </div>

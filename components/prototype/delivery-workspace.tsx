@@ -32,7 +32,7 @@ export default function DeliveryWorkspace({ branchId }: { branchId: string }) {
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">{tab === "Pending" ? "Pending deliveries" : "Delivered orders"}</h2><span className="text-xs tabular-nums text-slate-500">{loading ? "Updating…" : `${visible.length} ${visible.length === 1 ? "order" : "orders"}`}</span></div>
       {loading ? <p role="status" className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500"><Loader2 size={18} className="animate-spin motion-reduce:animate-none" />Loading deliveries…</p> : <DataTable className="[&_table]:text-sm [&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_th]:px-3 [&_th]:py-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-3 [&_tbody]:divide-slate-100" columns={columns} rows={visible} rowKey={(order: Order) => order.id} minWidth="680px" emptyMessage={`No ${tab.toLowerCase()} deliveries.`} />}
-      {!loading && <div className="border-t border-slate-200 bg-slate-50/50 px-4 py-3 text-xs text-slate-500">Use the action icon to mark an order as delivered.</div>}
+     
     </section>
   </div>;
 }
