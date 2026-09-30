@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
 import { errorMessage, listSlots, type Order, type Slot } from "@/services/order-service";
+import "./order-modal-theme.css";
 
 export type Action = "process" | "edit" | "discount" | "cancel" | "delete";
 const input = "mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500";
@@ -51,11 +52,11 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
   }
   const slotLabels = Array.from(new Set([order.deliveryTimeSlot, ...slots.filter((slot) => slot.status === "Active").map((slot) => slot.label)].filter(Boolean)));
   return <dialog ref={dialog} aria-labelledby="order-dialog-title" onCancel={(event) => { if (busy) event.preventDefault(); else onClose(); }}
-    className="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl overflow-auto rounded-lg bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-zinc-950/40">
+    className="order-action-modal fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl overflow-auto bg-white p-0">
     <form onSubmit={submit}>
-      <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
-        <div><h2 id="order-dialog-title" className="text-lg font-bold">{title}</h2><p className="text-sm text-zinc-500">{order.orderNumber}</p></div>
-        <button type="button" disabled={busy} onClick={onClose} aria-label="Close dialog" className="rounded-lg p-2 hover:bg-zinc-100 focus:ring-2 focus:ring-cyan-500"><X size={20} /></button>
+      <div className="modal-header flex items-center justify-between border-b">
+        <div><h2 id="order-dialog-title" className="modal-title">{title}</h2><p className="modal-subtitle mt-1">{order.orderNumber}</p></div>
+        <button type="button" disabled={busy} onClick={onClose} aria-label="Close dialog" className="modal-close"><X size={18} /></button>
       </div>
       <fieldset disabled={busy} className="space-y-5 p-6">
         {delivery && <>
@@ -79,7 +80,7 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
         {action === "cancel" && <p>Cancel this order and move it to the Cancelled tab?</p>}
         {action === "delete" && <p>Remove this pending order from the order list? Its stored record and payment history will be retained.</p>}
         {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-        <div className="flex gap-3"><button type="submit" className={`${button} ${action === "delete" || action === "cancel" ? "bg-rose-600" : "bg-zinc-950"} text-white`}>{busy ? "Saving…" : action === "delete" ? "Delete Order" : action === "cancel" ? "Cancel Order" : "Save"}</button><button type="button" onClick={onClose} className={`${button} border border-zinc-200`}>{action === "cancel" || action === "delete" ? "Keep Order" : "Cancel"}</button></div>
+        <div className="flex gap-3"><button type="submit" className={`${button} modal-primary`}>{busy ? "Saving…" : action === "delete" ? "Delete Order" : action === "cancel" ? "Cancel Order" : "Save"}</button><button type="button" onClick={onClose} className={`${button} modal-secondary`}>{action === "cancel" || action === "delete" ? "Keep Order" : "Cancel"}</button></div>
       </fieldset>
     </form>
   </dialog>;

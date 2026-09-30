@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Printer, X } from "lucide-react";
+import "./order-modal-theme.css";
 
 type Item = {
   rowId: string;
@@ -62,18 +63,18 @@ export default function BillPrintDialog({ order, onClose }: { order: Order; onCl
           #laundry-bill-print-root .bill-output .amount { text-align: right; }
         }
       `}</style>
-      <dialog ref={dialog} onCancel={onClose} aria-labelledby="print-bill-title" className="fixed inset-0 m-auto max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-auto rounded-lg border border-zinc-200 bg-white p-0!important text-zinc-950 shadow-xl backdrop:bg-black/50">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
+      <dialog ref={dialog} onCancel={onClose} aria-labelledby="print-bill-title" className="order-action-modal fixed inset-0 m-auto max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-auto bg-white p-0!important text-slate-950">
+        <div className="modal-header flex items-center justify-between border-b">
           <div>
-            <h2 id="print-bill-title" className="text-lg font-bold">Print bill</h2>
-            <p className="text-sm text-zinc-500">{order.orderNumber}</p>
+            <h2 id="print-bill-title" className="modal-title">Print bill</h2>
+            <p className="modal-subtitle mt-1">{order.orderNumber}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close print bill" className="rounded-lg p-2 hover:bg-zinc-100"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Close print bill" className="modal-close"><X size={18} /></button>
         </div>
         <Bill order={order} balance={balance} className="p-6" />
-        <div className="flex justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-5 py-4">
-          <button type="button" onClick={printBill} className="inline-flex items-center gap-2 rounded-lg bg-zinc-950 px-4 py-2 font-semibold text-white"><Printer size={17} /> Print</button>
-          <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 px-4 py-2 font-semibold">Cancel</button>
+        <div className="modal-footer flex justify-end gap-3 border-t">
+          <button type="button" onClick={printBill} className="modal-primary inline-flex items-center gap-2 px-4 font-semibold"><Printer size={16} /> Print</button>
+          <button type="button" onClick={onClose} className="modal-secondary px-4 font-semibold">Cancel</button>
         </div>
       </dialog>
       <Bill order={order} balance={balance} className="bill-output" />
