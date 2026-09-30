@@ -37,7 +37,7 @@ function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDeliver
   }, [position]);
   function dismiss() { setPosition(null); trigger.current?.focus(); }
   function select(action: Action) { dismiss(); onAction(action); }
-  const item = "block w-full rounded-md px-3 py-2.5 text-left text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none";
+  const item = "block w-full rounded-md px-2.5 py-2 text-left text-xs hover:bg-slate-100 focus:bg-slate-100 focus:outline-none sm:px-3 sm:py-2.5 sm:text-sm";
   return <div className="inline-flex flex-nowrap items-center justify-start gap-1">
     {pending && permissions?.edit !== false && <button type="button" onClick={() => onAction("process")} className={iconButton} title="Process Order" aria-label={`Process order ${order.orderNumber}`}><PackageCheck size={15} className="shrink-0" /></button>}
     {processing && deliveryPermissions?.edit !== false && <button type="button" onClick={onMoveToDelivery} className={iconButton} title="Move to Delivery" aria-label={`Move ${order.orderNumber} to delivery`}><Truck size={15} className="shrink-0" /></button>}
@@ -47,10 +47,11 @@ function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDeliver
     <button ref={trigger} type="button" className={iconButton} title="Order actions" aria-label={`Actions for ${order.orderNumber}`} aria-haspopup="menu" aria-expanded={!!position} onClick={() => {
       if (position) { dismiss(); return; }
       const rect = trigger.current!.getBoundingClientRect();
-      const height = pending ? 222 : cancelled ? 54 : 96;
+      const compact = window.matchMedia("(max-width: 768px)").matches;
+      const height = pending ? (compact ? 184 : 222) : cancelled ? (compact ? 46 : 54) : (compact ? 80 : 96);
       setPosition({ left: Math.max(8, Math.min(rect.right - 192, window.innerWidth - 200)), top: rect.bottom + height + 8 > window.innerHeight ? Math.max(8, rect.top - height) : rect.bottom + 4 });
     }}><MoreVertical size={15} className="shrink-0" /></button>
-    {position && createPortal(<div ref={menu} role="menu" aria-label={`Order actions for ${order.orderNumber}`} style={position} className="fixed z-40 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-xl" onKeyDown={(event) => {
+    {position && createPortal(<div ref={menu} role="menu" aria-label={`Order actions for ${order.orderNumber}`} style={position} className="fixed z-40 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-xl sm:w-48" onKeyDown={(event) => {
       if (event.key === "Escape" || event.key === "Tab") { if (event.key === "Escape") event.preventDefault(); dismiss(); }
       if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
         event.preventDefault(); const items = Array.from(menu.current!.querySelectorAll<HTMLElement>('[role="menuitem"]'));
@@ -112,11 +113,11 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
     } catch (issue) { setError(errorMessage(issue)); }
   }
   function actions(order: Order) { return <Actions order={order} onAction={(action) => setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => moveToDelivery(order)} permissions={permissions} deliveryPermissions={deliveryPermissions} />; }
-  return <div className="space-y-4 text-slate-900">
+  return <div className="order-workspace space-y-4 text-slate-900">
     <section className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><ClipboardList size={20} aria-hidden="true" /></span><div><h2 className="text-base font-bold tracking-tight text-slate-900">Order workspace</h2><p className="mt-0.5 text-xs text-slate-500">Manage orders, payments, and delivery handovers.</p></div></div>
-        {permissions?.add !== false && <Link href={`/branch/${branchId}/orders/create`} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"><Plus size={17} />Create order</Link>}
+        {permissions?.add !== false && <Link href={`/branch/${branchId}/orders/create`} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"><Plus size={16} />Create order</Link>}
       </div>
       <label className="mt-5 flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={18} className="shrink-0 text-slate-400" /><span className="sr-only">Search orders</span><input className="min-w-0 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search by order number, customer, or phone" value={query} onChange={(e) => setQuery(e.target.value)} />{query && <button type="button" onClick={() => setQuery("")} className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-slate-500">Clear</button>}</label>
     </section>
@@ -130,7 +131,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
     <div id="orders-panel" role="tabpanel" aria-labelledby={`orders-tab-${tabs.indexOf(tab)}`} aria-busy={loading} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">{tab === "Under Processing" ? "Orders in progress" : `${tab} orders`}</h2><span className="text-xs tabular-nums text-slate-500">{loading ? "Updating…" : `${visible.length} ${visible.length === 1 ? "order" : "orders"}${query ? " found" : ""}`}</span></div>
       {loading ? <p role="status" className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500"><Loader2 size={18} className="animate-spin motion-reduce:animate-none" />Loading orders…</p> : <>
-        <div className="hidden lg:block"><DataTable className="[&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_tbody]:divide-slate-100 [&_tbody_tr:hover]:bg-transparent [&_table]:text-xs [&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-3 [&_th]:text-[11px] [&_td]:px-3 [&_td]:py-3 [&_td]:leading-5" minWidth="880px" rows={visible} rowKey={(order: Order) => order.id} emptyMessage={query ? "No matching orders." : `No ${tab.toLowerCase()} orders.`} columns={[
+        <DataTable className="[&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_tbody]:divide-slate-100 [&_tbody_tr:hover]:bg-transparent [&_table]:text-xs [&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-3 [&_th]:text-[11px] [&_td]:px-3 [&_td]:py-3 [&_td]:leading-5" minWidth="760px" rows={visible} rowKey={(order: Order) => order.id} emptyMessage={query ? "No matching orders." : `No ${tab.toLowerCase()} orders.`} columns={[
           { key: "order", label: "Order", cellClassName: "whitespace-nowrap", render: (order: Order) => <Link className="rounded font-semibold text-slate-900 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-slate-500" href={`/branch/${branchId}/orders/${order.id}`}>{order.orderNumber}</Link> },
           { key: "customer", label: "Customer", cellClassName: "min-w-32", render: (order: Order) => <><p className="font-semibold">{order.customerName}</p><p className="mt-0.5 whitespace-nowrap text-[11px] text-slate-500">{order.customerPhone}</p></> },
           { key: "delivery", label: "Delivery", cellClassName: "whitespace-nowrap text-slate-600", render: (order: Order) => <>{order.deliveryDate}<br />{order.deliveryTimeSlot}</> },
@@ -138,8 +139,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
           { key: "total", label: "Grand total", headerClassName: "text-left", cellClassName: "text-left font-semibold tabular-nums whitespace-nowrap", render: (order: Order) => money(order.grandTotal) },
           { key: "payment", label: "Payment", cellClassName: "whitespace-nowrap", render: (order: Order) => <Payment order={order} /> },
           { key: "actions", label: "Actions", headerClassName: "w-44", cellClassName: "w-44 whitespace-nowrap", render: (order: Order) => actions(order) },
-        ]} /></div>
-        <div className="grid gap-3 p-4 lg:hidden">{!visible.length && <p className="py-8 text-center text-sm text-slate-500">{query ? "No matching orders. Try another search." : `No ${tab.toLowerCase()} orders.`}</p>}{visible.map((order) => <div key={order.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"><div className="flex flex-col items-start justify-between gap-3 sm:flex-row"><div className="min-w-0 break-words"><Link className="rounded font-semibold text-slate-900 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-slate-500" href={`/branch/${branchId}/orders/${order.id}`}>{order.orderNumber}</Link><p className="text-sm text-slate-600">{order.customerName} · {order.customerPhone}</p></div>{actions(order)}</div><div className="mt-3 space-y-2 text-sm text-slate-600"><p>Delivery: {order.deliveryDate}, {order.deliveryTimeSlot}</p><p>Labels: {order.itemCount} · Quantity: {order.totalItemQuantity}</p><p className="font-bold text-slate-950">Grand total: {money(order.grandTotal)}</p><Payment order={order} /></div></div>)}</div>
+        ]} />
       </>}
       {!loading && <div className="border-t border-slate-200 bg-slate-50/50 px-5 py-3 text-xs text-slate-500">{query ? "Results match your search in the selected status." : "Select an order number to view its details."}</div>}
     </div>

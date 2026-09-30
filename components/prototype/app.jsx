@@ -8,6 +8,7 @@ import LabelPrintDialog from "./label-print-dialog";
 import OrdersWorkspace from "./orders-workspace";
 import DeliveryWorkspace from "./delivery-workspace";
 import StaffManagement from "./staff-management";
+import DataTable, { TableActionButton } from "@/components/common/data-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,6 +21,7 @@ import {
   Clock3,
   CreditCard,
   DollarSign,
+  Pencil,
   Eye,
   EyeOff,
   Factory,
@@ -50,6 +52,7 @@ import { authenticate, can, getAccessibleBranches, getCachedSession, getSession,
 import {
   createBranch,
   createCustomer,
+  deleteCustomer,
   createItemGroup,
   createOrder,
   createPaymentReceipt,
@@ -71,6 +74,7 @@ import {
   saveServiceItems,
   saveTimeSlots,
   updateBranch,
+  updateCustomer,
   updateItemGroup,
   updateServiceItem,
   updateTimeSlot,
@@ -246,7 +250,7 @@ function CustomerCombobox({ customers, selectedCustomer, onSelect, error }) {
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="customer-combobox relative">
       <div className={classNames(
         "flex h-11 items-center gap-2 rounded-lg border bg-white px-3 transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100",
         error ? "border-rose-300" : "border-zinc-200",
@@ -516,11 +520,11 @@ const navigationHeaderHeight = "h-20";
 
 function TopBar({ session, title, subtitle, branches, onMenu }) {
   return (
-    <header className={classNames(navigationHeaderHeight, "sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur")}>
+    <header className={classNames(navigationHeaderHeight, "app-topbar sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur")}>
       <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <button className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu size={21} /></button>
-          <div className="min-w-0"><h1 className="truncate text-lg font-black text-slate-950">{title}</h1>{subtitle ? <p className="truncate text-sm text-slate-500">{subtitle}</p> : null}</div>
+          <div className="min-w-0"><h1 className="topbar-title truncate text-lg font-black text-slate-950">{title}</h1>{subtitle ? <p className="topbar-subtitle truncate text-sm text-slate-500">{subtitle}</p> : null}</div>
         </div>
         <div className="hidden h-12 min-w-0 max-w-lg flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 md:flex"><Search size={17} className="shrink-0 text-slate-400" /><input aria-label="Search orders, branches, customers" className="min-w-0 w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" placeholder="Search orders, branches, customers" /></div>
         <div className="flex shrink-0 items-center gap-2"><ProfileDropdown session={session} branches={branches} /></div>
@@ -531,7 +535,7 @@ function TopBar({ session, title, subtitle, branches, onMenu }) {
 
 function Sidebar({ links, isOpen, onClose }) {
   const pathname = usePathname();
-  const content = <div className="flex h-full flex-col overflow-hidden border-r border-slate-200 bg-white text-slate-900">
+  const content = <div className="app-sidebar flex h-full flex-col overflow-hidden border-r border-slate-200 bg-white text-slate-900">
     <div className={classNames(navigationHeaderHeight, "flex shrink-0 items-center justify-between border-b border-slate-200 px-5")}><Link href="/" onClick={onClose} className="group flex items-center gap-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400"><span className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-900 transition-transform group-hover:scale-105"><Sparkles size={21} strokeWidth={2.5} /></span><span><span className="block text-[17px] font-extrabold tracking-tight text-slate-950">LaundryOS</span><span className="block text-xs font-medium text-slate-500">Multi-branch suite</span></span></Link><button className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 lg:hidden" onClick={onClose} aria-label="Close navigation"><X size={20} /></button></div>
     <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-6" aria-label="Main navigation">{links.map((link) => { if (link.type === "heading") return <p key={link.label} className="px-3 pb-2 pt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 first:pt-2">{link.label}</p>; const isActive = pathname === link.href; return <Link key={link.href} href={link.href} onClick={onClose} className={classNames("group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400", link.isChild ? "ml-4 py-2.5 text-xs" : "", isActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950")}><span style={isActive ? undefined : { backgroundColor: "#f1f5f9" }} className={classNames("grid size-8 shrink-0 place-items-center rounded-lg", isActive ? "text-white" : "text-slate-500 group-hover:text-slate-900")}><link.icon size={17} strokeWidth={isActive ? 2.4 : 2} /></span><span className="min-w-0 truncate">{link.label}</span>{isActive ? <span className="ml-auto size-1.5 rounded-full bg-white" /> : null}</Link>; })}</nav>
     <div className="shrink-0 px-5 pb-4 pt-2"><div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">LaundryOS workspace</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Operations and branch tools in one place.</p></div></div>
@@ -597,7 +601,7 @@ function AppShell({ type, title, subtitle, children }) {
       <Sidebar links={links} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <div className="lg:pl-64">
         <TopBar session={session} title={title} subtitle={subtitle} branches={branches} onMenu={() => setIsMenuOpen(true)} />
-        <main className="px-4 py-6 lg:px-6">{children(session, setSessionState)}</main>
+        <main className="app-main px-4 py-6 lg:px-6">{children(session, setSessionState)}</main>
       </div>
     </div>
   );
@@ -1332,7 +1336,7 @@ function BranchDashboardContent({ branch, wasCreated = false }) {
   const pendingPaymentTotal = branchOrders.reduce((sum, order) => sum + Math.max(0, Number(order.grandTotal || 0) - Number(order.paidAmount || 0)), 0);
   const revenueTotal = branchOrders.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
   return (
-    <div className="space-y-4">
+    <div className="dashboard-workspace space-y-4">
             {wasCreated ? <div role="status" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> Branch created successfully.</div> : null}
             <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 p-6 text-white">
               <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Branch overview</p><h2 className="mt-2 text-3xl font-extrabold tracking-tight">{branch.name}</h2><p className="mt-2 text-sm text-slate-300">{branch.code} · {branch.city}, {branch.state} · {branch.openingTime}-{branch.closingTime}</p></div><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl border border-slate-700 bg-slate-800 text-slate-100"><Store size={20} /></span><Badge tone={branch.status}>{branch.status}</Badge></div></div>
@@ -1738,7 +1742,10 @@ export function CreateOrderPage() {
                   <div className="flex items-center justify-between gap-3 text-sm tabular-nums"><span className="font-bold text-slate-950">Grand total</span><strong>{formatMoney(totals.grandTotal)}</strong></div>
                 </div>
               </div>
-              <button type="button" className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400" onClick={() => submit(branch)}><CheckCircle2 size={17} /> Save order</button>
+              <div className="create-order-actions mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
+                <button type="button" className="create-order-cancel inline-flex !h-10 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 sm:!h-11" onClick={() => router.push(`/branch/${branch.id}/orders`)}>Cancel</button>
+                <button type="button" className="create-order-save inline-flex !h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 sm:!h-11" onClick={() => submit(branch)}><CheckCircle2 size={17} /> Save order</button>
+              </div>
             </aside>
           </div>
         );
@@ -1840,6 +1847,9 @@ export function OrderDetailsPage() {
 export function CustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [query, setQuery] = useState("");
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1859,46 +1869,75 @@ export function CustomersPage() {
         const branchCustomers = customers
           .filter((customer) => customer.branchId === branch.id)
           .filter((customer) => [customer.name, customer.phone, customer.email].join(" ").toLowerCase().includes(query.toLowerCase()));
+        async function saveCustomer(customerId, values) {
+          try {
+            const saved = customerId ? await updateCustomer(customerId, values) : await createCustomer({ ...values, branchId: branch.id });
+            setCustomers((current) => customerId ? current.map((customer) => customer.id === saved.id ? saved : customer) : [...current, saved]);
+            setEditingCustomer(null);
+            setNotice(customerId ? `${saved.name} updated.` : `${saved.name} created.`);
+          } catch (issue) {
+            setError(getApiErrorMessage(issue, "Unable to update customer."));
+            throw issue;
+          }
+        }
+        async function removeCustomer(customer) {
+          if (!window.confirm(`Remove ${customer.name} from this branch?`)) return;
+          try {
+            await deleteCustomer(customer.id);
+            setCustomers((current) => current.filter((item) => item.id !== customer.id));
+            setNotice(`${customer.name} removed.`);
+          } catch (issue) {
+            setError(getApiErrorMessage(issue, "Unable to remove customer."));
+          }
+        }
         return (
-          <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <h2 className="text-xl font-black text-zinc-950">Customers</h2>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
-                  <Search size={17} className="text-zinc-400" />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full text-sm outline-none" placeholder="Search customers" />
-                </div>
-                {can(session, "customers.add") ? <Link href={`/branch/${branch.id}/customers/create`}><Button><UserPlus size={17} /> Create customer</Button></Link> : null}
+          <div className="customer-workspace space-y-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-700"><Users size={19} /></span><div><h2 className="text-base font-bold tracking-tight text-slate-900">Customer directory</h2><p className="mt-0.5 text-xs text-slate-500">Customers available for branch orders.</p></div></div>
+                {can(session, "customers.add") ? <button type="button" onClick={() => { setError(""); setEditingCustomer({ isNew: true }); }} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"><UserPlus size={16} /> Create customer</button> : null}
               </div>
-            </div>
-            <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
-              <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3">Customer</th>
-                    <th className="px-4 py-3">Phone</th>
-                    <th className="px-4 py-3">Email</th>
-                    <th className="px-4 py-3">Address</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {branchCustomers.map((customer) => (
-                    <tr key={customer.id}>
-                      <td className="px-4 py-4 font-bold text-zinc-950">{customer.name}</td>
-                      <td className="px-4 py-4 text-zinc-600">{customer.phone}</td>
-                      <td className="px-4 py-4 text-zinc-600">{customer.email}</td>
-                      <td className="px-4 py-4 text-zinc-600">{customer.address}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!branchCustomers.length ? <EmptyState title="No customers found" body="Create a customer before selecting them in Create Order." action={<Link href={`/branch/${branch.id}/customers/create`}><Button>Create customer</Button></Link>} /> : null}
-          </section>
+              <label className="mt-5 flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={17} className="shrink-0 text-slate-400" /><span className="sr-only">Search customers</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search by name, phone, or email" />{query ? <button type="button" onClick={() => setQuery("")} className="text-xs font-semibold text-slate-500 hover:text-slate-900">Clear</button> : null}</label>
+            </section>
+            {notice ? <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p> : null}
+            {error ? <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">Customers</h2><span className="text-xs tabular-nums text-slate-500">{branchCustomers.length} {branchCustomers.length === 1 ? "customer" : "customers"}{query ? " found" : ""}</span></div>
+              <DataTable className="[&_table]:text-sm [&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_th]:px-4 [&_th]:py-3 [&_th]:text-xs [&_td]:px-4 [&_td]:py-3 [&_tbody]:divide-slate-100" minWidth="700px" rows={branchCustomers} rowKey={(customer) => customer.id} emptyMessage={query ? "No matching customers." : "No customers found."} columns={[
+                { key: "customer", label: "Customer", render: (customer) => <p className="font-semibold text-slate-900">{customer.name}</p> },
+                { key: "phone", label: "Phone", cellClassName: "whitespace-nowrap text-slate-600", render: (customer) => customer.phone },
+                { key: "email", label: "Email", cellClassName: "text-slate-600", render: (customer) => customer.email || "—" },
+                { key: "address", label: "Address", cellClassName: "max-w-64 truncate text-slate-600", render: (customer) => customer.address || "—" },
+                { key: "actions", label: "Actions", headerClassName: "w-20", cellClassName: "w-20 whitespace-nowrap", render: (customer) => <div className="inline-flex gap-1">{can(session, "customers.edit") ? <TableActionButton label={`Edit ${customer.name}`} onClick={() => { setError(""); setEditingCustomer(customer); }}><Pencil size={15} /></TableActionButton> : null}{can(session, "customers.delete") ? <TableActionButton label={`Delete ${customer.name}`} onClick={() => removeCustomer(customer)}><Trash2 size={15} /></TableActionButton> : null}</div> },
+              ]} />
+              <div className="border-t border-slate-200 bg-slate-50/50 px-4 py-3 text-xs text-slate-500">Use the action icons to edit or remove a customer.</div>
+            </section>
+            {editingCustomer ? <CustomerEditDialog customer={editingCustomer} onClose={() => setEditingCustomer(null)} onSave={saveCustomer} /> : null}
+          </div>
         );
       }}
     </BranchModuleShell>
   );
+}
+
+function CustomerEditDialog({ customer, onClose, onSave }) {
+  const dialogRef = useRef(null);
+  const isNew = customer.isNew === true;
+  const [form, setForm] = useState({ name: isNew ? "" : customer.name, phone: isNew ? "" : customer.phone, email: isNew ? "" : customer.email || "", address: isNew ? "" : customer.address || "" });
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { const dialog = dialogRef.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  async function submit(event) {
+    event.preventDefault();
+    if (!form.name || !form.phone) { setError("Name and phone are required."); return; }
+    setIsSaving(true);
+    try { await onSave(isNew ? null : customer.id, form); } catch (issue) { setError(getApiErrorMessage(issue, `Unable to ${isNew ? "create" : "save"} customer.`)); setIsSaving(false); }
+  }
+  return <dialog ref={dialogRef} onCancel={onClose} className="fixed inset-0 m-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/40 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]"><form onSubmit={submit} className="flex max-h-[calc(100dvh-1.5rem)] min-h-0 flex-col sm:max-h-[calc(100dvh-2rem)]">
+    <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 sm:px-4 sm:py-3"><div><h2 className="text-sm font-bold sm:text-base">{isNew ? "Create customer" : "Edit customer"}</h2><p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">{isNew ? "Add customer contact details." : "Update contact details."}</p></div><button type="button" onClick={onClose} aria-label="Close customer editor" className="grid size-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={16} /></button></div>
+    <fieldset disabled={isSaving} className="grid min-h-0 flex-1 gap-2.5 overflow-y-auto overscroll-contain p-3 [&>label>span:first-child]:mb-1 [&>label>span:first-child]:text-[11px] sm:grid-cols-2 sm:gap-3 sm:p-4 sm:[&>label>span:first-child]:text-xs"><Field label="Name"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" autoFocus value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field><Field label="Phone"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></Field><Field label="Email"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></Field><Field label="Address"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} /></Field>{error ? <p role="alert" className="sm:col-span-2 text-xs text-rose-700 sm:text-sm">{error}</p> : null}</fieldset>
+    <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5 sm:flex-row sm:justify-end sm:gap-2 sm:px-4 sm:py-3"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:text-sm">Cancel</button><button className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 sm:h-10 sm:text-sm">{isSaving ? "Saving…" : isNew ? "Create customer" : "Save changes"}</button></div>
+  </form></dialog>;
 }
 
 export function CreateCustomerPage() {
@@ -1925,16 +1964,16 @@ export function CreateCustomerPage() {
   return (
     <BranchModuleShell title="Create Customer" subtitle="Add a customer for this branch" requiredPermission="customers.add">
       {(session, branch) => (
-        <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Name" error={errors.name}><TextInput value={form.name} onChange={(event) => update("name", event.target.value)} error={errors.name} /></Field>
-            <Field label="Phone" error={errors.phone}><TextInput value={form.phone} onChange={(event) => update("phone", event.target.value)} error={errors.phone} /></Field>
-            <Field label="Email" error={errors.email}><TextInput value={form.email} onChange={(event) => update("email", event.target.value)} error={errors.email} /></Field>
-            <Field label="Address"><TextInput value={form.address} onChange={(event) => update("address", event.target.value)} /></Field>
+        <section className="create-customer-workspace rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+            <Field label="Name" error={errors.name}><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.name} onChange={(event) => update("name", event.target.value)} error={errors.name} /></Field>
+            <Field label="Phone" error={errors.phone}><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.phone} onChange={(event) => update("phone", event.target.value)} error={errors.phone} /></Field>
+            <Field label="Email" error={errors.email}><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.email} onChange={(event) => update("email", event.target.value)} error={errors.email} /></Field>
+            <Field label="Address"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.address} onChange={(event) => update("address", event.target.value)} /></Field>
           </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <Link href={`/branch/${branch.id}/customers`}><Button variant="secondary">Cancel</Button></Link>
-            <Button onClick={() => saveCustomer(branch)}><CheckCircle2 size={17} /> Save customer</Button>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:mt-6 sm:flex-row sm:justify-end sm:gap-3">
+            <Link className="w-full sm:w-auto" href={`/branch/${branch.id}/customers`}><Button className="w-full text-xs sm:w-auto sm:text-sm" variant="secondary">Cancel</Button></Link>
+            <Button className="w-full text-xs sm:w-auto sm:text-sm" onClick={() => saveCustomer(branch)}><CheckCircle2 size={16} /> Save customer</Button>
           </div>
         </section>
       )}

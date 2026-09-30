@@ -50,11 +50,334 @@ select {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: #94a3b8 !important;
-  --tw-ring-color: #e2e8f0 !important;
+  border-color: #a1a1aa !important;
+  --tw-ring-color: #e4e4e7 !important;
 }
 
 .focus-within\:border-cyan-500:focus-within {
-  border-color: #94a3b8 !important;
-  --tw-ring-color: #e2e8f0 !important;
+  border-color: #a1a1aa !important;
+  --tw-ring-color: #e4e4e7 !important;
+}
+
+/* Shared surfaces use neutral gray borders, without a blue cast. */
+.border-slate-100 { border-color: #f4f4f5 !important; }
+.border-slate-200 { border-color: #e4e4e7 !important; }
+.border-slate-300 { border-color: #d4d4d8 !important; }
+.ring-slate-100, .ring-slate-200, .ring-cyan-500 { --tw-ring-color: #e4e4e7 !important; }
+
+@media (max-width: 768px) {
+  .app-main:has(.order-workspace),
+  .app-main:has(.customer-workspace),
+  .app-main:has(.delivery-workspace),
+  .app-main:has(.staff-workspace) {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .app-topbar .topbar-title {
+    font-size: 1.125rem;
+    line-height: 1.375rem;
+  }
+
+  .app-topbar .topbar-subtitle {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .dashboard-workspace .text-3xl {
+    font-size: 1.5rem;
+    line-height: 1.875rem;
+  }
+
+  .dashboard-workspace .text-2xl {
+    font-size: 1.25rem;
+    line-height: 1.625rem;
+  }
+
+  .dashboard-workspace .text-lg {
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+  }
+
+  .dashboard-workspace .text-sm {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .order-workspace > * + *,
+  .customer-workspace > * + *,
+  .delivery-workspace > * + *,
+  .staff-workspace > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  .order-workspace > section:first-child,
+  .customer-workspace > section:first-child,
+  .delivery-workspace > section:first-child,
+  .staff-workspace > section:first-child {
+    padding: 0.875rem;
+  }
+
+  .order-workspace > section:first-child > div,
+  .customer-workspace > section:first-child > div,
+  .delivery-workspace > section:first-child > div,
+  .staff-workspace > section:first-child > div {
+    gap: 0.75rem;
+  }
+
+  .order-workspace > section:first-child > div > div:first-child,
+  .customer-workspace > section:first-child > div > div:first-child,
+  .delivery-workspace > section:first-child > div > div:first-child,
+  .staff-workspace > section:first-child > div > div:first-child {
+    gap: 0.625rem;
+  }
+
+  .order-workspace > section:first-child > label,
+  .customer-workspace > section:first-child > label,
+  .delivery-workspace > section:first-child > label,
+  .staff-workspace > section:first-child > label {
+    margin-top: 0.75rem;
+    height: 2.5rem;
+  }
+
+  .order-workspace > section:first-child > label svg,
+  .customer-workspace > section:first-child > label svg,
+  .delivery-workspace > section:first-child > label svg,
+  .staff-workspace > section:first-child > label svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .order-workspace > section:first-child h2 {
+    font-size: 0.9375rem;
+    line-height: 1.125rem;
+  }
+
+  .delivery-workspace > section:first-child h2 {
+    font-size: 0.9375rem;
+    line-height: 1.125rem;
+  }
+
+  .order-workspace > section:first-child p,
+  .order-workspace > section:first-child a,
+  .order-workspace > section:first-child input,
+  .delivery-workspace > section:first-child p,
+  .delivery-workspace > section:first-child a,
+  .delivery-workspace > section:first-child input {
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
+  .order-workspace [role="tab"] {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .delivery-workspace [role="tab"] {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .order-workspace [role="tabpanel"] > div:first-child {
+    padding: 0.625rem 0.75rem;
+  }
+
+  .order-workspace [role="tabpanel"] table {
+    font-size: 0.6875rem !important;
+  }
+
+  .order-workspace [role="tabpanel"] th {
+    padding: 0.5rem !important;
+    font-size: 0.625rem !important;
+  }
+
+  .order-workspace [role="tabpanel"] td {
+    padding: 0.625rem 0.5rem !important;
+    line-height: 1rem !important;
+  }
+
+  .order-workspace [role="tabpanel"] td button {
+    width: 1.625rem;
+    height: 1.625rem;
+  }
+
+  .order-workspace [role="tabpanel"] td button svg {
+    width: 0.8125rem;
+    height: 0.8125rem;
+  }
+
+  .delivery-workspace table {
+    font-size: 0.6875rem !important;
+  }
+
+  .delivery-workspace th {
+    padding: 0.5rem !important;
+    font-size: 0.625rem !important;
+  }
+
+  .delivery-workspace td {
+    padding: 0.625rem 0.5rem !important;
+    line-height: 1rem !important;
+  }
+
+  .delivery-workspace td button {
+    width: 1.625rem;
+    height: 1.625rem;
+  }
+
+  .delivery-workspace td button svg {
+    width: 0.8125rem;
+    height: 0.8125rem;
+  }
+
+  .customer-workspace > section:first-child h2 {
+    font-size: 0.9375rem;
+    line-height: 1.125rem;
+  }
+
+  .staff-workspace > section:first-child h2 {
+    font-size: 0.9375rem;
+    line-height: 1.125rem;
+  }
+
+  .customer-workspace > section:first-child p,
+  .customer-workspace > section:first-child a,
+  .customer-workspace > section:first-child button,
+  .customer-workspace > section:first-child input,
+  .staff-workspace > section:first-child p,
+  .staff-workspace > section:first-child button,
+  .staff-workspace > section:first-child input {
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
+  .customer-workspace table {
+    font-size: 0.6875rem !important;
+  }
+
+  .customer-workspace th {
+    padding: 0.5rem !important;
+    font-size: 0.625rem !important;
+  }
+
+  .customer-workspace td {
+    padding: 0.625rem 0.5rem !important;
+    line-height: 1rem !important;
+  }
+
+  .customer-workspace td button {
+    width: 1.625rem;
+    height: 1.625rem;
+  }
+
+  .customer-workspace td button svg {
+    width: 0.8125rem;
+    height: 0.8125rem;
+  }
+
+  .staff-workspace table {
+    font-size: 0.6875rem !important;
+  }
+
+  .staff-workspace th {
+    padding: 0.5rem !important;
+    font-size: 0.625rem !important;
+  }
+
+  .staff-workspace td {
+    padding: 0.625rem 0.5rem !important;
+    line-height: 1rem !important;
+  }
+
+  .staff-workspace td button {
+    width: 1.625rem;
+    height: 1.625rem;
+  }
+
+  .staff-workspace td button svg {
+    width: 0.8125rem;
+    height: 0.8125rem;
+  }
+
+  .app-topbar {
+    height: 4rem !important;
+  }
+
+  .app-topbar > div {
+    gap: 0.625rem;
+    padding-inline: 0.75rem;
+  }
+
+  .app-topbar button {
+    padding: 0.375rem;
+  }
+
+  .app-sidebar > div:first-child {
+    height: 4rem;
+    padding-inline: 0.875rem;
+  }
+
+  .app-sidebar > div:first-child .size-11 {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .app-sidebar > div:first-child a > span:nth-child(2) > span:first-child {
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+
+  .app-sidebar > div:first-child .text-xs {
+    font-size: 0.6875rem;
+    line-height: 0.875rem;
+  }
+
+  .app-sidebar nav {
+    padding: 1rem 0.75rem;
+  }
+
+  .app-sidebar nav p {
+    padding: 1rem 0.625rem 0.375rem;
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+    letter-spacing: 0.13em;
+  }
+
+  .app-sidebar nav a {
+    gap: 0.625rem;
+    padding: 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .app-sidebar nav a > span:first-child {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .app-sidebar nav a svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .app-sidebar > div:last-child {
+    padding: 0.5rem 0.75rem 0.75rem;
+  }
+
+  .app-sidebar > div:last-child > div {
+    padding: 0.625rem;
+  }
+
+  .app-sidebar > div:last-child p:first-child {
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
+  .app-sidebar > div:last-child p:last-child {
+    margin-top: 0.25rem;
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+  }
 }
