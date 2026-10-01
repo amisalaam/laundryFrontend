@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import "./create-order-theme.css";
 import Image from "next/image";
+import BillPrintDialog from "./bill-print-dialog";
+import LabelPrintDialog from "./label-print-dialog";
+import OrdersWorkspace from "./orders-workspace";
+import DeliveryWorkspace from "./delivery-workspace";
+import StaffManagement from "./staff-management";
+import DataTable, { TableActionButton } from "@/components/common/data-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
-  Bell,
   Building2,
   Camera,
   CheckCircle2,
@@ -15,6 +21,7 @@ import {
   Clock3,
   CreditCard,
   DollarSign,
+  Pencil,
   Eye,
   EyeOff,
   Factory,
@@ -41,10 +48,11 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { authenticate, can, getAccessibleBranches, getCachedSession, getSession, logout, setSession, updateCurrentBranch } from "@/lib/auth";
+import { authenticate, can, getAccessibleBranches, getCachedSession, getSession, logout, refreshSession, setSession, updateCurrentBranch } from "@/lib/auth";
 import {
   createBranch,
   createCustomer,
+  deleteCustomer,
   createItemGroup,
   createOrder,
   createPaymentReceipt,
@@ -63,12 +71,11 @@ import {
   saveBranches,
   saveItemGroups,
   saveLaundries,
-  saveOrders,
   saveServiceItems,
   saveTimeSlots,
   updateBranch,
+  updateCustomer,
   updateItemGroup,
-  updateOrder,
   updateServiceItem,
   updateTimeSlot,
 } from "@/lib/storage";
@@ -77,11 +84,11 @@ const statusStyles = {
   Active: "border-emerald-200 bg-emerald-50 text-emerald-700",
   Inactive: "border-zinc-200 bg-zinc-100 text-zinc-600",
   Draft: "border-amber-200 bg-amber-50 text-amber-700",
-  Trial: "border-cyan-200 bg-cyan-50 text-cyan-700",
+  Trial: "border-slate-200 bg-slate-50 text-slate-700",
   Ready: "border-emerald-200 bg-emerald-50 text-emerald-700",
   Pending: "border-amber-200 bg-amber-50 text-amber-700",
-  Processing: "border-blue-200 bg-blue-50 text-blue-700",
-  "In progress": "border-blue-200 bg-blue-50 text-blue-700",
+  Processing: "border-slate-200 bg-slate-50 text-slate-700",
+  "In progress": "border-slate-200 bg-slate-50 text-slate-700",
   Approved: "border-indigo-200 bg-indigo-50 text-indigo-700",
   "Pending Delivery": "border-violet-200 bg-violet-50 text-violet-700",
   Delivered: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -92,7 +99,6 @@ const statusStyles = {
   Unpaid: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
-const orderStatuses = ["Pending", "Processing", "Approved", "Pending Delivery", "Delivered", "Cancelled"];
 
 const INITIAL_BRANCH_FORM = {
   name: "",
@@ -110,7 +116,7 @@ const INITIAL_BRANCH_FORM = {
 };
 
 function formatMoney(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
+  return `₹${Number(value || 0).toFixed(2)}`;
 }
 
 function getBranchPath(pathname) {
@@ -244,7 +250,7 @@ function CustomerCombobox({ customers, selectedCustomer, onSelect, error }) {
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="customer-combobox relative">
       <div className={classNames(
         "flex h-11 items-center gap-2 rounded-lg border bg-white px-3 transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100",
         error ? "border-rose-300" : "border-zinc-200",
@@ -285,7 +291,7 @@ function CustomerCombobox({ customers, selectedCustomer, onSelect, error }) {
               onClick={() => chooseCustomer(customer)}
               className={classNames(
                 "flex w-full items-center justify-between gap-4 rounded-md px-3 py-2.5 text-left",
-                index === activeIndex ? "bg-cyan-50" : "hover:bg-zinc-50",
+                index === activeIndex ? "bg-slate-100" : "hover:bg-slate-50",
               )}
             >
               <span className="min-w-0">
@@ -304,16 +310,10 @@ function CustomerCombobox({ customers, selectedCustomer, onSelect, error }) {
 
 function StatCard({ icon: Icon, label, value, detail }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 transition-colors hover:border-slate-300">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-zinc-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-zinc-950">{value}</p>
-          {detail ? <p className="mt-1 text-xs font-medium text-zinc-500">{detail}</p> : null}
-        </div>
-        <span className="grid size-11 place-items-center rounded-lg bg-cyan-50 text-cyan-700">
-          <Icon size={20} />
-        </span>
+        <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">{value}</p>{detail ? <p className="mt-1 text-xs font-medium text-slate-500">{detail}</p> : null}</div>
+        <span className="grid size-10 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700"><Icon size={19} /></span>
       </div>
     </div>
   );
@@ -421,6 +421,22 @@ function useProtectedSession(expectedType) {
   const [isReady, setIsReady] = useState(Boolean(cachedSession));
 
   useEffect(() => {
+    if (!session?.id) return undefined;
+    let isMounted = true;
+    async function refreshPermissions() {
+      const latestSession = await refreshSession();
+      if (!isMounted) return;
+      if (!latestSession || latestSession.loginType !== expectedType) {
+        router.replace(expectedType === "super-admin" ? "/super-admin/login" : "/login");
+        return;
+      }
+      setSessionState(latestSession);
+    }
+    const timer = window.setInterval(refreshPermissions, 10000);
+    return () => { isMounted = false; window.clearInterval(timer); };
+  }, [expectedType, router, session?.id]);
+
+  useEffect(() => {
     let isMounted = true;
     async function loadSession() {
       if (session?.loginType === expectedType) {
@@ -468,11 +484,11 @@ function ProfileDropdown({ session, branches = [] }) {
 
   return (
     <div className="relative">
-      <button onClick={() => setIsOpen((value) => !value)} className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left shadow-sm">
-        <span className="grid size-9 place-items-center rounded-lg bg-zinc-950 text-sm font-bold text-white">{session?.name?.slice(0, 1)}</span>
-        <span className="hidden sm:block">
-          <span className="block text-sm font-bold text-zinc-950">{session?.name}</span>
-          <span className="block text-xs text-zinc-500">{session?.role}</span>
+      <button onClick={() => setIsOpen((value) => !value)} className="flex h-12 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left">
+        <span className="grid size-9 place-items-center rounded-lg bg-slate-900 text-sm font-bold text-white">{session?.name?.slice(0, 1)}</span>
+        <span className="hidden min-w-0 max-w-40 sm:block">
+          <span className="block truncate text-sm font-bold text-zinc-950">{session?.name}</span>
+          <span className="block truncate text-xs text-zinc-500">{session?.role}</span>
         </span>
         <ChevronDown size={16} className="text-zinc-500" />
       </button>
@@ -500,29 +516,18 @@ function ProfileDropdown({ session, branches = [] }) {
   );
 }
 
+const navigationHeaderHeight = "h-20";
+
 function TopBar({ session, title, subtitle, branches, onMenu }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 backdrop-blur">
-      <div className="flex min-h-16 items-center justify-between gap-4 px-4 lg:px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <button className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 lg:hidden" onClick={onMenu} aria-label="Open navigation">
-            <Menu size={21} />
-          </button>
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-black text-zinc-950">{title}</h1>
-            {subtitle ? <p className="truncate text-sm text-zinc-500">{subtitle}</p> : null}
-          </div>
+    <header className={classNames(navigationHeaderHeight, "app-topbar sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur")}>
+      <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <button className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu size={21} /></button>
+          <div className="min-w-0"><h1 className="topbar-title truncate text-lg font-black text-slate-950">{title}</h1>{subtitle ? <p className="topbar-subtitle truncate text-sm text-slate-500">{subtitle}</p> : null}</div>
         </div>
-        <div className="hidden max-w-sm flex-1 items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 md:flex">
-          <Search size={17} className="text-zinc-400" />
-          <input className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400" placeholder="Search orders, branches, customers" />
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="grid size-10 place-items-center rounded-lg border border-zinc-200 bg-white text-zinc-600 shadow-sm hover:bg-zinc-50" aria-label="Notifications">
-            <Bell size={18} />
-          </button>
-          <ProfileDropdown session={session} branches={branches} />
-        </div>
+        <div className="hidden h-12 min-w-0 max-w-lg flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 md:flex"><Search size={17} className="shrink-0 text-slate-400" /><input aria-label="Search orders, branches, customers" className="min-w-0 w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" placeholder="Search orders, branches, customers" /></div>
+        <div className="flex shrink-0 items-center gap-2"><ProfileDropdown session={session} branches={branches} /></div>
       </div>
     </header>
   );
@@ -530,49 +535,12 @@ function TopBar({ session, title, subtitle, branches, onMenu }) {
 
 function Sidebar({ links, isOpen, onClose }) {
   const pathname = usePathname();
-  const content = (
-    <div className="flex h-full flex-col bg-zinc-950 p-4 text-white">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-cyan-400 text-zinc-950">
-            <Sparkles size={20} />
-          </span>
-          <span>
-            <span className="block text-base font-black">LaundryOS</span>
-            <span className="block text-xs text-zinc-400">Multi-branch suite</span>
-          </span>
-        </Link>
-        <button className="rounded-lg p-2 text-zinc-300 hover:bg-white/10 lg:hidden" onClick={onClose} aria-label="Close navigation">
-          <X size={20} />
-        </button>
-      </div>
-      <nav className="mt-8 space-y-1">
-        {links.map((link) => {
-          if (link.type === "heading") {
-            return <p key={link.label} className="px-3 pb-1 pt-5 text-xs font-black uppercase tracking-wider text-zinc-500 first:pt-0">{link.label}</p>;
-          }
-          const isActive = pathname === link.href;
-          return (
-            <Link key={link.href} href={link.href} className={classNames("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition", link.isChild ? "ml-4 py-2 text-xs" : "", isActive ? "bg-white text-zinc-950" : "text-zinc-300 hover:bg-white/10 hover:text-white")}>
-              <link.icon size={18} />
-              {link.label}
-            </Link>
-          );
-        })}
-      </nav>
-    </div>
-  );
-  return (
-    <>
-      <aside className="fixed inset-y-0 left-0 hidden w-72 lg:block">{content}</aside>
-      {isOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button className="absolute inset-0 bg-zinc-950/50" onClick={onClose} aria-label="Close navigation overlay" />
-          <aside className="relative h-full w-80 max-w-[86vw]">{content}</aside>
-        </div>
-      ) : null}
-    </>
-  );
+  const content = <div className="app-sidebar flex h-full flex-col overflow-hidden border-r border-slate-200 bg-white text-slate-900">
+    <div className={classNames(navigationHeaderHeight, "flex shrink-0 items-center justify-between border-b border-slate-200 px-5")}><Link href="/" onClick={onClose} className="group flex items-center gap-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400"><span className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-900 transition-transform group-hover:scale-105"><Sparkles size={21} strokeWidth={2.5} /></span><span><span className="block text-[17px] font-extrabold tracking-tight text-slate-950">LaundryOS</span><span className="block text-xs font-medium text-slate-500">Multi-branch suite</span></span></Link><button className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 lg:hidden" onClick={onClose} aria-label="Close navigation"><X size={20} /></button></div>
+    <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-6" aria-label="Main navigation">{links.map((link) => { if (link.type === "heading") return <p key={link.label} className="px-3 pb-2 pt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 first:pt-2">{link.label}</p>; const isActive = pathname === link.href; return <Link key={link.href} href={link.href} onClick={onClose} className={classNames("group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400", link.isChild ? "ml-4 py-2.5 text-xs" : "", isActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950")}><span style={isActive ? undefined : { backgroundColor: "#f1f5f9" }} className={classNames("grid size-8 shrink-0 place-items-center rounded-lg", isActive ? "text-white" : "text-slate-500 group-hover:text-slate-900")}><link.icon size={17} strokeWidth={isActive ? 2.4 : 2} /></span><span className="min-w-0 truncate">{link.label}</span>{isActive ? <span className="ml-auto size-1.5 rounded-full bg-white" /> : null}</Link>; })}</nav>
+    <div className="shrink-0 px-5 pb-4 pt-2"><div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">LaundryOS workspace</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Operations and branch tools in one place.</p></div></div>
+  </div>;
+  return <><aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">{content}</aside>{isOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" onClick={onClose} aria-label="Close navigation overlay" /><aside className="relative h-full w-[min(20rem,88vw)]">{content}</aside></div> : null}</>;
 }
 
 function AppShell({ type, title, subtitle, children }) {
@@ -581,6 +549,16 @@ function AppShell({ type, title, subtitle, children }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [branches, setBranchesState] = useState(() => getCachedBranches() || []);
   const isSettingsArea = type === "business" && pathname.startsWith("/settings");
+  const isOwner = session?.role === "Laundry Owner";
+  const settingsPermission = { "Branch Management": "branch.view", "Create Branch": "branch.add", "Item Groups": "item_group.view", "Items": "item.view", "Time Slots": "time_slot.view" };
+  const settingsLinks = [
+    { href: "/settings/branches", label: "Branch Management", icon: Store },
+    { href: "/settings/branches/create", label: "Create Branch", icon: Plus },
+    { href: "/settings/item-groups", label: "Item Groups", icon: Tag },
+    { href: "/settings/items", label: "Items", icon: PackageCheck },
+    { href: "/settings/time-slots", label: "Time Slots", icon: Clock3 },
+  ];
+  const visibleSettingsLinks = settingsLinks.filter((link) => isOwner || Boolean(settingsPermission[link.label] && session?.permissions?.includes(settingsPermission[link.label])));
   const links = type === "super-admin"
     ? [
         { href: "/super-admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -590,19 +568,16 @@ function AppShell({ type, title, subtitle, children }) {
     : isSettingsArea
       ? [
         { href: "/home", label: "Business Home", icon: Store },
-        { type: "heading", label: "Settings" },
-        { href: "/settings/branches", label: "Branch Management", icon: Store },
-        { href: "/settings/branches/create", label: "Create Branch", icon: Plus },
-        { href: "/settings/item-groups", label: "Item Groups", icon: Tag },
-        { href: "/settings/items", label: "Items", icon: PackageCheck },
-        { href: "/settings/time-slots", label: "Time Slots", icon: Clock3 },
-      ].filter((link) => link.type === "heading" || link.label !== "Create Branch" || can(session, "create_branch"))
+        ...(visibleSettingsLinks.length ? [{ type: "heading", label: "Settings" }, ...visibleSettingsLinks] : []),
+      ]
       : [
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/dashboard` : "/home", label: "Dashboard", icon: LayoutDashboard },
         { type: "heading", label: "Operations" },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/orders` : "/home", label: "Orders", icon: ClipboardList },
         { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/customers` : "/home", label: "Customers", icon: Users },
-      ].filter((link) => link.type === "heading" || link.label !== "Create Branch" || can(session, "create_branch"));
+        { href: session?.currentBranchId ? `/branch/${session.currentBranchId}/delivery` : "/home", label: "Delivery", icon: Truck },
+        { href: "/staff", label: "Staff Management", icon: Users },
+      ].filter((link) => link.type === "heading" || isOwner || ({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view","Staff Management":"staff_management.view"}[link.label] && session?.permissions?.includes({"Orders":"orders.view","Customers":"customers.view","Delivery":"delivery.view","Staff Management":"staff_management.view"}[link.label])));
 
   useEffect(() => {
     let isMounted = true;
@@ -622,11 +597,11 @@ function AppShell({ type, title, subtitle, children }) {
 
   if (!isReady) return <LoadingShell />;
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-white">
       <Sidebar links={links} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-      <div className="lg:pl-72">
+      <div className="lg:pl-64">
         <TopBar session={session} title={title} subtitle={subtitle} branches={branches} onMenu={() => setIsMenuOpen(true)} />
-        <main className="px-4 py-6 lg:px-6">{children(session, setSessionState)}</main>
+        <main className="app-main px-4 py-6 lg:px-6">{children(session, setSessionState)}</main>
       </div>
     </div>
   );
@@ -774,12 +749,17 @@ export function LaundriesPage() {
   const [status, setStatus] = useState("All");
   const [sortBy, setSortBy] = useState("name");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
     async function loadLaundries() {
-      const nextLaundries = await getLaundries();
-      if (isMounted) setLaundries(nextLaundries);
+      try {
+        const nextLaundries = await getLaundries();
+        if (isMounted) setLaundries(nextLaundries);
+      } catch (error) {
+        if (isMounted) setLoadError(getApiErrorMessage(error));
+      }
     }
     loadLaundries();
     return () => {
@@ -814,6 +794,7 @@ export function LaundriesPage() {
     <AppShell type="super-admin" title="Laundry Businesses" subtitle="Search, filter, sort, edit, activate, and delete laundry accounts">
       {() => (
         <div className="space-y-5">
+          {loadError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{loadError}</p> : null}
           <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
             <div className="flex flex-1 items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
               <Search size={18} className="text-zinc-400" />
@@ -963,6 +944,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [success, setSuccess] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
 
@@ -972,6 +954,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
   }
 
   async function save(isDraft = false) {
+    setSaveError("");
     const nextErrors = validateLaundryForm(form, isDraft);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -979,11 +962,13 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
     try {
       const payload = { ...form, status: isDraft ? "Inactive" : form.status };
       const data = form.id ? await api.patch(`/laundries/${form.id}/`, payload) : await api.post("/laundries/", payload);
+      setForm((current) => ({ ...current, id: data.laundry.id }));
       setIsSaving(false);
       setSuccess(isDraft ? "Laundry saved as inactive." : "Laundry business and owner saved.");
       if (mode === "create" && !isDraft) router.push(`/super-admin/laundries/${data.laundry.id}`);
     } catch (error) {
       setErrors(error.fields || {});
+      setSaveError(getApiErrorMessage(error));
       setSuccess("");
       setIsSaving(false);
     }
@@ -991,6 +976,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
 
   return (
     <div className="space-y-5">
+      {saveError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{saveError}</p> : null}
       {success ? <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> {success}</div> : null}
       <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-zinc-950">Laundry information</h2>
@@ -1203,13 +1189,17 @@ export function BranchSelectionPage() {
           </div>
         </header>
         {(() => {
+        const settingsRoutes = [
+          ["branch.view", "/settings/branches"], ["branch.add", "/settings/branches/create"], ["item_group.view", "/settings/item-groups"], ["item.view", "/settings/items"], ["time_slot.view", "/settings/time-slots"], ["staff_management.view", "/settings/staff"],
+        ];
+        const settingsHref = settingsRoutes.find(([permission]) => can(session, permission))?.[1];
         function openBranch(branchId) {
           updateCurrentBranch(branchId);
           router.push(`/branch/${branchId}/dashboard`);
         }
         return (
           <div className="space-y-5">
-            {can(session, "create_branch") ? (
+            {settingsHref ? (
               <section className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cyan-50 text-cyan-700"><Settings size={20} /></span>
@@ -1218,7 +1208,7 @@ export function BranchSelectionPage() {
                     <p className="mt-1 text-sm text-zinc-500">Manage branches, service items, item groups, and delivery time slots in one place.</p>
                   </div>
                 </div>
-                <Link href="/settings/branches"><Button variant="secondary"><Settings size={17} /> Manage settings</Button></Link>
+                <Link href={settingsHref}><Button variant="secondary"><Settings size={17} /> Manage settings</Button></Link>
               </section>
             ) : null}
             {branches.length ? (
@@ -1229,7 +1219,7 @@ export function BranchSelectionPage() {
               <EmptyState
                 title="You don't have any branches"
                 body="Use Business Settings to create your first branch. Dashboard, orders, and customers will become available afterward."
-                action={can(session, "create_branch") ? (
+                action={can(session, "branch.add") ? (
                   <Link href="/settings/branches/create"><Button><Plus size={17} /> Create first branch</Button></Link>
                 ) : null}
               />
@@ -1281,7 +1271,7 @@ export function CreateBranchPage() {
   return (
     <AppShell type="business" title="Create Branch" subtitle="Add branch operating details and open the dashboard immediately">
       {(session) => {
-        if (!can(session, "create_branch")) return <EmptyState title="Branch creation is not available" body="Your role can work inside assigned branches but cannot create new ones." />;
+        if (!can(session, "branch.add")) return <EmptyState title="Branch creation is not available" body="Your role can work inside assigned branches but cannot create new ones." />;
         return (
           <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             {submitError ? <div role="alert" className="mb-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700"><AlertTriangle size={18} /> {submitError}</div> : null}
@@ -1346,17 +1336,10 @@ function BranchDashboardContent({ branch, wasCreated = false }) {
   const pendingPaymentTotal = branchOrders.reduce((sum, order) => sum + Math.max(0, Number(order.grandTotal || 0) - Number(order.paidAmount || 0)), 0);
   const revenueTotal = branchOrders.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
   return (
-    <div className="space-y-6">
+    <div className="dashboard-workspace space-y-4">
             {wasCreated ? <div role="status" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> Branch created successfully.</div> : null}
-            <section className="rounded-lg border border-cyan-200 bg-cyan-50 p-5">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm font-bold uppercase text-cyan-700">Current branch</p>
-                  <h2 className="mt-1 text-2xl font-black text-zinc-950">{branch.name}</h2>
-                  <p className="mt-1 text-sm text-zinc-600">{branch.code} · {branch.city}, {branch.state} · {branch.openingTime}-{branch.closingTime}</p>
-                </div>
-                <Badge tone={branch.status}>{branch.status}</Badge>
-              </div>
+            <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 p-6 text-white">
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Branch overview</p><h2 className="mt-2 text-3xl font-extrabold tracking-tight">{branch.name}</h2><p className="mt-2 text-sm text-slate-300">{branch.code} · {branch.city}, {branch.state} · {branch.openingTime}-{branch.closingTime}</p></div><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl border border-slate-700 bg-slate-800 text-slate-100"><Store size={20} /></span><Badge tone={branch.status}>{branch.status}</Badge></div></div>
             </section>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard icon={ClipboardList} label="Today's orders" value={todayOrders.length} detail={`${branchOrders.length} total work orders`} />
@@ -1368,102 +1351,126 @@ function BranchDashboardContent({ branch, wasCreated = false }) {
               <StatCard icon={Users} label="Total customers" value={branchCustomers.length} detail="Saved in this branch" />
               <StatCard icon={UserPlus} label="Staff working" value={branch.staffCount} detail="Configured branch team" />
             </div>
-            <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+            <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,1fr)]">
               <RecentOrders orders={branchOrders.slice(0, 5)} branchId={branch.id} />
-              <DashboardChart />
+              <DashboardChart orders={branchOrders} />
             </div>
-            <div className="grid gap-6 xl:grid-cols-2">
-              <Panel title="Pending deliveries" items={pendingDeliveryOrders.map((order) => `${order.orderNumber} · ${order.customerName} · ${order.deliveryTimeSlot}`)} emptyText="No pending deliveries." />
-              <Panel title="Recent customers" items={branchCustomers.slice(0, 3).map((customer) => `${customer.name} · ${customer.phone}`)} emptyText="No customers yet." />
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Panel icon={Truck} title="Pending deliveries" items={pendingDeliveryOrders.map((order) => `${order.orderNumber} · ${order.customerName} · ${order.deliveryTimeSlot}`)} emptyText="No pending deliveries." />
+              <Panel icon={Users} title="Recent customers" items={branchCustomers.slice(0, 3).map((customer) => `${customer.name} · ${customer.phone}`)} emptyText="No customers yet." />
             </div>
-            <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-zinc-950">Quick actions</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <Link href={`/branch/${branch.id}/orders/create`}><Button variant="secondary" className="w-full"><ClipboardList size={17} /> Create order</Button></Link>
-                <Link href={`/branch/${branch.id}/customers`}><Button variant="secondary" className="w-full"><UserPlus size={17} /> Add customer</Button></Link>
-                <Link href={`/branch/${branch.id}/orders`}><Button variant="secondary" className="w-full"><DollarSign size={17} /> Record payment</Button></Link>
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <DashboardHeading icon={Sparkles} title="Quick actions" subtitle="Your everyday branch essentials" />
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                {[
+                  { label: "Create order", detail: "Start a new laundry order", icon: ClipboardList, path: "orders/create", primary: true },
+                  { label: "Add customer", detail: "Manage your customer directory", icon: UserPlus, path: "customers" },
+                  { label: "Record payment", detail: "Open orders and collect payment", icon: DollarSign, path: "orders" },
+                ].map(({ label, detail, icon: Icon, path, primary }) => (
+                  <Link key={path} href={`/branch/${branch.id}/${path}`} className={classNames("group flex items-center gap-3 rounded-xl border p-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500", primary ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800" : "border-slate-200 bg-slate-50 text-slate-900 hover:border-slate-300 hover:bg-slate-100")}>
+                    <Icon size={21} className="shrink-0" aria-hidden="true" />
+                    <span className="min-w-0"><span className="block text-sm font-bold">{label}</span><span className={classNames("mt-1 block text-xs", primary ? "text-slate-300" : "text-slate-500")}>{detail}</span></span>
+                    <span className="ml-auto" aria-hidden="true">↗</span>
+                  </Link>
+                ))}
               </div>
             </section>
     </div>
   );
 }
 
+const dashboardCard = "min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white";
+
+function DashboardHeading({ icon: Icon, title, subtitle, children }) {
+  return <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex items-center gap-3">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Icon size={19} aria-hidden="true" /></span>
+      <div><h2 className="text-base font-bold tracking-tight text-slate-900">{title}</h2>{subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}</div>
+    </div>{children}
+  </div>;
+}
+
 function RecentOrders({ orders = [], branchId }) {
-  return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold text-zinc-950">Recent orders</h2>
-        {branchId ? <Link href={`/branch/${branchId}/orders`} className="text-sm font-semibold text-cyan-700 hover:text-cyan-900">View all</Link> : null}
-      </div>
-      <div className="mt-4 overflow-hidden rounded-lg border border-zinc-200">
-        {orders.map((order) => (
-          <div key={order.id} className="grid gap-3 border-b border-zinc-200 p-4 last:border-0 md:grid-cols-[0.8fr_1fr_1fr_auto_auto] md:items-center">
-            <p className="font-bold text-zinc-950">{order.orderNumber || order.id}</p>
-            <p className="text-sm text-zinc-600">{order.customerName || order.customer}</p>
-            <p className="text-sm text-zinc-600">{order.items?.[0]?.itemName || order.service}</p>
-            <Badge tone={order.status}>{order.status}</Badge>
-            <p className="font-bold text-zinc-900">{order.grandTotal ? formatMoney(order.grandTotal) : order.total}</p>
-          </div>
-        ))}
-      </div>
-      {!orders.length ? <EmptyState title="No recent orders" body="Create an order to populate this branch dashboard." /> : null}
-    </section>
-  );
+  return <section className={classNames(dashboardCard, "flex h-full flex-col")}>
+    <div className="flex min-h-[84px] shrink-0 flex-col justify-center border-b border-slate-200 p-5"><DashboardHeading icon={ClipboardList} title="Recent orders" subtitle="Latest orders from your branch">
+      {branchId ? <Link href={`/branch/${branchId}/orders`} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-slate-500">View all <span aria-hidden="true">↗</span></Link> : null}
+    </DashboardHeading></div>
+    {orders.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+      <thead className="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500"><tr>{["Order / customer", "Service", "Status", "Amount"].map(label => <th key={label} scope="col" className={classNames("px-5 py-3 font-semibold", label === "Amount" && "text-right")}>{label}</th>)}</tr></thead>
+      <tbody className="divide-y divide-slate-100">{orders.map(order => <tr key={order.id} className="hover:bg-slate-50">
+        <td className="px-5 py-4"><p className="whitespace-nowrap font-semibold text-slate-900">{order.orderNumber || order.id}</p><p className="mt-1 text-xs text-slate-500">{order.customerName || order.customer}</p></td>
+        <td className="px-5 py-4 text-slate-600">{order.items?.[0]?.itemName || order.service || "—"}</td>
+        <td className="whitespace-nowrap px-5 py-4"><Badge tone={order.status}>{order.status}</Badge></td>
+        <td className="whitespace-nowrap px-5 py-4 text-right font-semibold tabular-nums text-slate-900">{order.grandTotal != null ? formatMoney(order.grandTotal) : order.total}</td>
+      </tr>)}</tbody>
+    </table></div> : <div className="p-6 text-sm text-slate-500">No recent orders. Create an order to get started.</div>}
+    <div className="mt-auto border-t border-slate-100 px-5 py-3 text-xs text-slate-500">{orders.length ? `Showing ${orders.length} most recent ${orders.length === 1 ? "order" : "orders"}` : "New orders will appear here."}</div>
+  </section>;
 }
 
-function DashboardChart() {
-  return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-zinc-950">Order status chart</h2>
-      <div className="mt-5 flex h-56 items-end gap-3 rounded-lg bg-zinc-50 p-4">
-        {[0, 0, 0, 0, 0, 0, 0].map((height, index) => (
-          <div key={height} className="flex flex-1 flex-col items-center gap-2">
-            <div className="w-full rounded-t-lg bg-cyan-600" style={{ height: `${height}%` }} />
-            <span className="text-xs font-semibold text-zinc-500">{["M", "T", "W", "T", "F", "S", "S"][index]}</span>
-          </div>
-        ))}
+function DashboardChart({ orders = [] }) {
+  const [selectedDay, setSelectedDay] = useState(null);
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - 6 + index);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    return {
+      key,
+      label: date.toLocaleDateString("en", { weekday: "short" }),
+      fullLabel: date.toLocaleDateString("en", { month: "short", day: "numeric" }),
+      count: orders.filter(order => String(order.createdAt || "").slice(0, 10) === key).length,
+    };
+  });
+  const maximum = Math.max(4, Math.ceil(Math.max(...days.map(day => day.count)) / 4) * 4);
+  const total = days.reduce((sum, day) => sum + day.count, 0);
+  const active = days.find(day => day.key === selectedDay);
+  return <section className={classNames(dashboardCard, "flex h-full flex-col")}>
+    <div className="flex min-h-[84px] shrink-0 flex-col justify-center border-b border-slate-200 p-5"><DashboardHeading icon={ClipboardList} title="Order activity" subtitle="Last 7 days"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{total} {total === 1 ? "order" : "orders"}</span></DashboardHeading></div>
+    <div className="flex flex-1 flex-col px-5 pb-3 pt-5">
+      <div className="relative h-40 pl-7">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32" aria-hidden="true">
+          {[4, 3, 2, 1, 0].map(tick => <div key={tick} className="absolute inset-x-0 flex -translate-y-1/2 items-center gap-2" style={{ top: `${(4 - tick) / 4 * 100}%` }}><span className="w-5 text-right text-[10px] tabular-nums text-slate-400">{maximum * tick / 4}</span><span className="flex-1 border-t border-dashed border-slate-200" /></div>)}
+        </div>
+        <div className="relative grid h-full grid-cols-7 gap-2">
+          {days.map((day, index) => <button key={day.key} type="button" onMouseEnter={() => setSelectedDay(day.key)} onMouseLeave={() => setSelectedDay(null)} onFocus={() => setSelectedDay(day.key)} onBlur={() => setSelectedDay(null)} onClick={() => setSelectedDay(day.key)} aria-label={`${day.fullLabel}: ${day.count} orders`} className="group flex min-w-0 flex-col items-center rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500">
+            <span className="flex h-32 w-full shrink-0 items-end justify-center"><span className={classNames("w-full max-w-8 rounded-t-md transition-colors group-hover:bg-slate-600 group-focus-visible:bg-slate-600", index === 6 ? "bg-slate-800" : "bg-slate-400")} style={{ height: `${day.count / maximum * 100}%` }} /></span>
+            <span className="flex h-8 shrink-0 items-end text-[10px] font-medium text-slate-500">{day.label}</span>
+          </button>)}
+        </div>
       </div>
-      <h2 className="mt-6 text-lg font-bold text-zinc-950">Revenue overview</h2>
-      <div className="mt-3 h-3 overflow-hidden rounded-full bg-zinc-100">
-        <div className="h-full w-[72%] bg-emerald-500" />
-      </div>
-      <p className="mt-2 text-sm text-zinc-500">Revenue progress appears after receipt payments are recorded.</p>
-    </section>
-  );
+      <p className="mt-auto min-h-8 pt-4 text-xs text-slate-500" aria-live="polite">{active ? `${active.fullLabel} · ${active.count} ${active.count === 1 ? "order" : "orders"}` : total ? "Hover or select a day to see orders." : "No orders in the last 7 days."}</p>
+    </div>
+  </section>;
 }
 
-function Panel({ title, items, emptyText = "No records found." }) {
-  return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-zinc-950">{title}</h2>
-      <div className="mt-4 space-y-3">
-        {items.length ? items.map((item) => (
-          <div key={item} className="rounded-lg bg-zinc-50 p-3 text-sm font-medium text-zinc-700">{item}</div>
-        )) : <div className="rounded-lg bg-zinc-50 p-3 text-sm font-medium text-zinc-500">{emptyText}</div>}
-      </div>
-    </section>
-  );
+function Panel({ icon: Icon, title, items, emptyText = "No records found." }) {
+  return <section className={dashboardCard}>
+    <div className="border-b border-slate-200 p-5"><DashboardHeading icon={Icon} title={title}><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold tabular-nums text-slate-600">{items.length}</span></DashboardHeading></div>
+    {items.length ? <ul className="divide-y divide-slate-100">{items.map((item, index) => <li key={`${item}-${index}`} className="flex items-center gap-3 px-5 py-4 text-sm text-slate-700"><span className="size-1.5 shrink-0 rounded-full bg-slate-400" aria-hidden="true" /><span className="min-w-0 break-words">{item}</span></li>)}</ul> : <div className="flex items-center gap-3 px-5 py-7"><CheckCircle2 size={20} className="shrink-0 text-slate-400" aria-hidden="true" /><p className="text-sm text-slate-500">{emptyText}</p></div>}
+  </section>;
 }
 
 function useBranchIdFromPath() {
   return getBranchPath(usePathname());
 }
 
-function BranchModuleShell({ title, subtitle, children }) {
+function BranchModuleShell({ title, subtitle, requiredPermission, children }) {
   const branchId = useBranchIdFromPath();
   return (
     <AppShell type="business" title={title} subtitle={subtitle}>
       {(session) => {
+        if (requiredPermission && !can(session, requiredPermission)) return <EmptyState title="Access denied" body="You do not have permission to open this page." />;
         return <BranchScope session={session} branchId={branchId}>{children}</BranchScope>;
       }}
     </AppShell>
   );
 }
 
-function BusinessSettingsShell({ title, subtitle, children }) {
+function BusinessSettingsShell({ title, subtitle, requiredPermission, children }) {
   return (
     <AppShell type="business" title={title} subtitle={subtitle}>
-      {(session) => children(session, { laundryId: session.laundryId })}
+      {(session) => requiredPermission && !can(session, requiredPermission) ? <EmptyState title="Access denied" body="You do not have permission to open this page." /> : typeof children === "function" ? children(session, { laundryId: session.laundryId }) : children}
     </AppShell>
   );
 }
@@ -1492,15 +1499,6 @@ function BranchScope({ session, branchId, children }) {
   if (isLoading) return <div className="flex min-h-48 items-center justify-center gap-3 text-sm font-semibold text-zinc-600"><Loader2 className="animate-spin text-cyan-600" size={18} /> Loading branch</div>;
   if (!branch) return <EmptyState title="Branch unavailable" body="This branch is not assigned to the current user." action={<Link href="/home"><Button>Choose branch</Button></Link>} />;
   return children(session, branch);
-}
-
-function SectionHeader({ title, action }) {
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <h2 className="text-lg font-bold text-zinc-950">{title}</h2>
-      {action}
-    </div>
-  );
 }
 
 function AddReceiptModal({ order, onCancel, onSave }) {
@@ -1553,173 +1551,26 @@ function AddReceiptModal({ order, onCancel, onSave }) {
   );
 }
 
-function LabelPrintView({ order, onClose }) {
-  const labels = order.items.flatMap((item) => Array.from({ length: Number(item.itemCount || item.quantity || 0) }, (_, index) => ({
-    id: `${item.rowId}-${index}`,
-    item,
-    number: index + 1,
-  })));
-  return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-white p-6">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-5 flex items-center justify-between gap-3 print:hidden">
-          <div>
-            <h2 className="text-xl font-black text-zinc-950">Garment labels</h2>
-            <p className="text-sm text-zinc-500">{order.orderNumber} · {labels.length} labels</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => window.print()}><Printer size={17} /> Print</Button>
-            <Button onClick={onClose}>Close</Button>
-          </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {labels.map((label) => (
-            <div key={label.id} className="min-h-32 rounded-lg border-2 border-dashed border-zinc-400 p-4">
-              <p className="text-xl font-black text-zinc-950">{order.orderNumber}</p>
-              <p className="mt-1 text-sm font-semibold text-zinc-700">{order.customerName}</p>
-              <p className="mt-3 text-sm text-zinc-600">{label.item.shortCode} · {label.item.itemName}</p>
-              <p className="mt-1 text-sm text-zinc-600">Piece {label.number} of {label.item.itemCount || label.item.quantity}</p>
-              <p className="mt-3 text-xs font-bold uppercase text-zinc-500">{order.deliveryDate} · {order.deliveryTimeSlot}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function OrdersPage() {
-  const [orders, setOrders] = useState([]);
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("All");
-  const [receiptTarget, setReceiptTarget] = useState(null);
-  const [labelTarget, setLabelTarget] = useState(null);
+  return <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking" requiredPermission="orders.view">
+    {(session, branch) => <OrdersWorkspace key={branch.id} branchId={branch.id} permissions={session.permissionMatrix?.orders} deliveryPermissions={session.permissionMatrix?.delivery} />}
+  </BranchModuleShell>;
+}
 
-  useEffect(() => {
-    let isMounted = true;
-    async function loadOrders() {
-      const nextOrders = await getOrders();
-      if (isMounted) setOrders(nextOrders);
-    }
-    loadOrders();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  async function updateOrderStatus(orderId, nextStatus) {
-    const savedOrder = await updateOrder(orderId, { status: nextStatus });
-    const nextOrders = orders.map((order) => order.id === orderId ? savedOrder : order);
-    await saveOrders(nextOrders);
-    setOrders(nextOrders);
-  }
-
-  async function saveReceipt(order, receipt) {
-    const data = await createPaymentReceipt(order.id, receipt);
-    const nextOrders = orders.map((current) => current.id === order.id ? data.order : current);
-    await saveOrders(nextOrders);
-    setOrders(nextOrders);
-    setReceiptTarget(null);
-  }
-
-  return (
-    <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking">
-      {(session, branch) => {
-        const branchOrders = orders
-          .filter((order) => order.branchId === branch.id)
-          .filter((order) => status === "All" || order.status === status)
-          .filter((order) => [order.orderNumber, order.customerName, order.customerPhone].join(" ").toLowerCase().includes(query.toLowerCase()));
-        return (
-          <div className="space-y-5">
-            <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
-              <div className="flex flex-1 items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
-                <Search size={18} className="text-zinc-400" />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full text-sm outline-none" placeholder="Search order, customer, phone" />
-              </div>
-              <SelectInput value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option>All</option>
-                {orderStatuses.map((item) => <option key={item}>{item}</option>)}
-              </SelectInput>
-              <Link href={`/branch/${branch.id}/orders/create`}><Button className="w-full lg:w-auto"><Plus size={17} /> Create order</Button></Link>
-            </div>
-            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
-              <div className="hidden min-w-[1120px] lg:block">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                    <tr>
-                      <th className="px-4 py-3">Order</th>
-                      <th className="px-4 py-3">Customer</th>
-                      <th className="px-4 py-3">Delivery</th>
-                      <th className="px-4 py-3">Items</th>
-                      <th className="px-4 py-3">Grand total</th>
-                      <th className="px-4 py-3">Payment</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200">
-                    {branchOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td className="px-4 py-4"><Link href={`/branch/${branch.id}/orders/${order.id}`} className="font-bold text-cyan-700 hover:text-cyan-900">{order.orderNumber}</Link></td>
-                        <td className="px-4 py-4"><p className="font-semibold text-zinc-900">{order.customerName}</p><p className="text-zinc-500">{order.customerPhone}</p></td>
-                        <td className="px-4 py-4 text-zinc-600">{order.deliveryDate}<br />{order.deliveryTimeSlot}</td>
-                        <td className="px-4 py-4 text-zinc-600">{order.itemCount} labels<br />Qty {order.totalItemQuantity}</td>
-                        <td className="px-4 py-4 font-bold text-zinc-950">{formatMoney(order.grandTotal)}</td>
-                        <td className="px-4 py-4"><Badge tone={order.paymentStatus}>{order.paymentStatus}</Badge><p className="mt-1 text-xs text-zinc-500">{formatMoney(order.paidAmount)} paid</p></td>
-                        <td className="px-4 py-4">
-                          <SelectInput value={order.status} onChange={(event) => updateOrderStatus(order.id, event.target.value)}>
-                            {orderStatuses.map((item) => <option key={item}>{item}</option>)}
-                          </SelectInput>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            <Button variant="secondary" onClick={() => setLabelTarget(order)}><Printer size={16} /></Button>
-                            {order.paymentStatus !== "Paid" ? <Button variant="secondary" onClick={() => setReceiptTarget(order)}><WalletCards size={16} /> Receipt</Button> : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="grid gap-3 p-3 lg:hidden">
-                {branchOrders.map((order) => (
-                  <div key={order.id} className="rounded-lg border border-zinc-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <Link href={`/branch/${branch.id}/orders/${order.id}`} className="font-bold text-cyan-700">{order.orderNumber}</Link>
-                        <p className="text-sm text-zinc-600">{order.customerName} · {order.customerPhone}</p>
-                      </div>
-                      <Badge tone={order.status}>{order.status}</Badge>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-sm text-zinc-600">
-                      <p>Delivery: {order.deliveryDate}, {order.deliveryTimeSlot}</p>
-                      <p>Labels: {order.itemCount} · Quantity: {order.totalItemQuantity}</p>
-                      <p className="font-bold text-zinc-950">Grand total: {formatMoney(order.grandTotal)}</p>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button variant="secondary" onClick={() => setLabelTarget(order)}><Printer size={16} /> Labels</Button>
-                      {order.paymentStatus !== "Paid" ? <Button variant="secondary" onClick={() => setReceiptTarget(order)}><WalletCards size={16} /> Receipt</Button> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {!branchOrders.length ? <EmptyState title="No orders found" body="Create a work order to start tracking items, labels, delivery, and payments." action={<Link href={`/branch/${branch.id}/orders/create`}><Button>Create order</Button></Link>} /> : null}
-            </div>
-            {receiptTarget ? <AddReceiptModal order={receiptTarget} onCancel={() => setReceiptTarget(null)} onSave={(receipt) => saveReceipt(receiptTarget, receipt)} /> : null}
-            {labelTarget ? <LabelPrintView order={labelTarget} onClose={() => setLabelTarget(null)} /> : null}
-          </div>
-        );
-      }}
-    </BranchModuleShell>
-  );
+export function DeliveryPage() {
+  return <BranchModuleShell title="Delivery" subtitle="Manage pending and completed customer deliveries" requiredPermission="delivery.view">
+    {(session, branch) => <DeliveryWorkspace key={branch.id} branchId={branch.id} />}
+  </BranchModuleShell>;
 }
 
 export function CreateOrderPage() {
   const router = useRouter();
+  const branchId = useBranchIdFromPath();
   const [customers, setCustomers] = useState([]);
   const [serviceItems, setServiceItems] = useState([]);
   const [timeSlots, setTimeSlots] = useState([]);
+  const [timeSlotsError, setTimeSlotsError] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [errors, setErrors] = useState({});
   const [form, setForm] = useState({
@@ -1733,18 +1584,28 @@ export function CreateOrderPage() {
   useEffect(() => {
     let isMounted = true;
     async function loadCreateOrderData() {
-      const [nextCustomers, nextServiceItems, nextTimeSlots] = await Promise.all([getCustomers(), getServiceItems(), getTimeSlots()]);
-      if (isMounted) {
-        setCustomers(nextCustomers);
-        setServiceItems(nextServiceItems);
-        setTimeSlots(nextTimeSlots);
+      try {
+        const [nextCustomers, nextServiceItems, branches] = await Promise.all([getCustomers(), getServiceItems(), getBranches()]);
+        const branch = branches.find((item) => item.id === branchId);
+        const nextTimeSlots = branch ? await getTimeSlots(branch.laundryId) : [];
+        if (isMounted) {
+          setCustomers(nextCustomers);
+          setServiceItems(nextServiceItems);
+          setTimeSlots(nextTimeSlots);
+          setTimeSlotsError(branch ? "" : "The current branch could not be found.");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setTimeSlots([]);
+          setTimeSlotsError(getApiErrorMessage(error, "Could not load delivery time slots."));
+        }
       }
     }
     loadCreateOrderData();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [branchId]);
 
   const totals = useMemo(() => {
     const rows = form.items.map((row) => ({ ...row, itemTotal: Number(row.quantity || 0) * Number(row.unitPrice || 0) }));
@@ -1798,17 +1659,17 @@ export function CreateOrderPage() {
   }
 
   return (
-    <BranchModuleShell title="Create Order" subtitle="Select customer, choose configured items, calculate totals, and prepare labels">
+    <BranchModuleShell title="Create Order" subtitle="Select customer, choose configured items, calculate totals, and prepare labels" requiredPermission="orders.add">
       {(session, branch) => {
-        const branchCustomers = customers.filter((customer) => customer.branchId === branch.id || customer.laundryId === branch.laundryId);
+        const branchCustomers = customers.filter((customer) => customer.branchId === branch.id);
         const activeItems = serviceItems.filter((item) => item.laundryId === branch.laundryId && item.status === "Active");
         const activeSlots = timeSlots.filter((slot) => slot.laundryId === branch.laundryId && slot.status === "Active");
         return (
-          <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-            <div className="space-y-5">
-              <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-                <SectionHeader title="Customer" action={<Link href={`/branch/${branch.id}/customers`}><Button variant="secondary"><UserPlus size={17} /> Manage customers</Button></Link>} />
-                <div className="mt-5">
+          <div className="create-order-workspace grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0 space-y-4">
+              <section className="rounded-xl border border-slate-200 bg-white p-5">
+                <DashboardHeading icon={Users} title="Customer"><Link href={`/branch/${branch.id}/customers`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-slate-400"><UserPlus size={15} /> Manage customers</Link></DashboardHeading>
+                <div className="mt-4">
                   <Field label="Customer" error={errors.customer}>
                     <CustomerCombobox
                       customers={branchCustomers}
@@ -1822,7 +1683,7 @@ export function CreateOrderPage() {
                   </Field>
                 </div>
                 {selectedCustomer ? (
-                  <div className="mt-4 grid gap-3 rounded-lg bg-zinc-50 p-4 text-sm md:grid-cols-4">
+                  <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm md:grid-cols-4">
                     <Info label="Name" value={selectedCustomer.name} />
                     <Info label="Phone" value={selectedCustomer.phone} />
                     <Info label="Email" value={selectedCustomer.email} />
@@ -1830,56 +1691,61 @@ export function CreateOrderPage() {
                   </div>
                 ) : null}
               </section>
-              <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-zinc-950">Delivery</h2>
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <section className="rounded-xl border border-slate-200 bg-white p-5">
+                <DashboardHeading icon={Truck} title="Delivery" />
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <Field label="Delivery date" error={errors.deliveryDate}><TextInput type="date" value={form.deliveryDate} onChange={(event) => setForm((current) => ({ ...current, deliveryDate: event.target.value }))} error={errors.deliveryDate} /></Field>
                   <Field label="Delivery time slot" error={errors.deliveryTimeSlot}>
                     <SelectInput value={form.deliveryTimeSlot} onChange={(event) => setForm((current) => ({ ...current, deliveryTimeSlot: event.target.value }))} error={errors.deliveryTimeSlot}>
-                      <option value="">Choose slot</option>
+                      <option value="">{timeSlotsError ? "Unable to load slots" : "Choose slot"}</option>
                       {activeSlots.map((slot) => <option key={slot.id}>{slot.label}</option>)}
                     </SelectInput>
+                    {timeSlotsError ? <p role="alert" className="mt-2 text-sm text-rose-700">{timeSlotsError}</p> : null}
+                    {!timeSlotsError && !activeSlots.length ? <p role="status" className="mt-2 text-sm text-amber-700">No active delivery slots are configured for this laundry.</p> : null}
                   </Field>
                 </div>
               </section>
-              <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-                <SectionHeader title="Items" action={<Button variant="secondary" onClick={addRow}><Plus size={17} /> Add item</Button>} />
+              <section className="rounded-xl border border-slate-200 bg-white p-5">
+                <DashboardHeading icon={ClipboardList} title="Items"><button type="button" onClick={addRow} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-slate-400"><Plus size={15} /> Add item</button></DashboardHeading>
                 {errors.items ? <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-700">{errors.items}</p> : null}
-                <div className="mt-4 space-y-3">
+                <div className="order-items-list mt-4 divide-y divide-slate-200">
                   {form.items.map((row) => {
                     const selectedItem = activeItems.find((item) => item.id === row.itemId);
                     return (
-                      <div key={row.rowId} className="grid gap-3 rounded-lg border border-zinc-200 p-3 lg:grid-cols-[1.5fr_0.7fr_0.7fr_0.7fr_0.8fr_auto] lg:items-end">
+                      <div key={row.rowId} className="item-row grid items-end gap-3 py-4 first:pt-0 last:pb-0">
                         <Field label="Item">
                           <SelectInput value={row.itemId} onChange={(event) => updateRow(row.rowId, "itemId", event.target.value)}>
                             <option value="">Select item</option>
                             {activeItems.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.shortCode}</option>)}
                           </SelectInput>
                         </Field>
-                        <Field label={`Quantity${selectedItem?.unitType ? ` (${selectedItem.unitType})` : ""}`}><TextInput type="number" min="0" step="0.01" value={row.quantity} onChange={(event) => updateRow(row.rowId, "quantity", event.target.value)} /></Field>
+                        <Field label="Quantity"><div className="relative"><TextInput className={selectedItem?.unitType ? "quantity-with-unit" : ""} type="number" min="0" step="0.01" value={row.quantity} onChange={(event) => updateRow(row.rowId, "quantity", event.target.value)} />{selectedItem?.unitType ? <span title={selectedItem.unitType} className="pointer-events-none absolute inset-y-0 right-2 flex max-w-8 items-center overflow-hidden text-[10px] text-slate-500">{({ kilogram: "kg", kilograms: "kg", piece: "pc", pieces: "pcs" })[selectedItem.unitType.toLowerCase()] || selectedItem.unitType}</span> : null}</div></Field>
                         <Field label="Unit price"><TextInput type="number" min="0" step="0.01" value={row.unitPrice} onChange={(event) => updateRow(row.rowId, "unitPrice", event.target.value)} /></Field>
                         <Field label="Item count"><TextInput type="number" min="1" step="1" value={row.itemCount} onChange={(event) => updateRow(row.rowId, "itemCount", event.target.value)} /></Field>
-                        <Info label="Item total" value={formatMoney(Number(row.quantity || 0) * Number(row.unitPrice || 0))} />
-                        <Button variant="danger" onClick={() => removeRow(row.rowId)}><Trash2 size={16} /></Button>
+                        <div className="min-w-0"><p className="item-total-label mb-2 text-xs font-semibold text-slate-600">Item total</p><p className="item-total-value flex h-10 items-center text-xs font-bold tabular-nums text-slate-900">{formatMoney(Number(row.quantity || 0) * Number(row.unitPrice || 0))}</p></div>
+                        <button type="button" aria-label="Remove item" title="Remove item" disabled={form.items.length === 1} onClick={() => removeRow(row.rowId)} className="mb-1 grid size-8 place-items-center justify-self-end rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-slate-400 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 size={16} /></button>
                       </div>
                     );
                   })}
                 </div>
               </section>
             </div>
-            <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-zinc-950">Order summary</h2>
-              <div className="mt-5 space-y-3 text-sm">
-                <div className="flex justify-between"><span>Item count</span><strong>{totals.itemCount}</strong></div>
-                <div className="flex justify-between"><span>Total item quantity</span><strong>{totals.totalItemQuantity}</strong></div>
-                <div className="flex justify-between"><span>Item total</span><strong>{formatMoney(totals.subTotal)}</strong></div>
+            <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5">
+              <DashboardHeading icon={ReceiptText} title="Order summary" />
+              <div className="mt-4 space-y-4 text-xs text-slate-600">
+                <div className="flex items-center justify-between gap-3 [&_strong]:font-semibold [&_strong]:tabular-nums [&_strong]:text-slate-900"><span>Item count</span><strong>{totals.itemCount}</strong></div>
+                <div className="flex items-center justify-between gap-3 [&_strong]:font-semibold [&_strong]:tabular-nums [&_strong]:text-slate-900"><span>Total item quantity</span><strong>{totals.totalItemQuantity}</strong></div>
+                <div className="flex items-center justify-between gap-3 [&_strong]:font-semibold [&_strong]:tabular-nums [&_strong]:text-slate-900"><span>Item total</span><strong>{formatMoney(totals.subTotal)}</strong></div>
                 <Field label="Discount"><TextInput type="number" min="0" step="0.01" value={form.discount} onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))} /></Field>
                 <Field label="Amount paid now"><TextInput type="number" min="0" step="0.01" value={form.paidAmount} onChange={(event) => setForm((current) => ({ ...current, paidAmount: event.target.value }))} /></Field>
-                <div className="border-t border-zinc-200 pt-4">
-                  <div className="flex justify-between text-base"><span className="font-bold text-zinc-950">Grand total</span><strong>{formatMoney(totals.grandTotal)}</strong></div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-900">
+                  <div className="flex items-center justify-between gap-3 text-sm tabular-nums"><span className="font-bold text-slate-950">Grand total</span><strong>{formatMoney(totals.grandTotal)}</strong></div>
                 </div>
               </div>
-              <Button className="mt-6 w-full" onClick={() => submit(branch)}><CheckCircle2 size={17} /> Save order</Button>
+              <div className="create-order-actions mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
+                <button type="button" className="create-order-cancel inline-flex !h-10 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 sm:!h-11" onClick={() => router.push(`/branch/${branch.id}/orders`)}>Cancel</button>
+                <button type="button" className="create-order-save inline-flex !h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 sm:!h-11" onClick={() => submit(branch)}><CheckCircle2 size={17} /> Save order</button>
+              </div>
             </aside>
           </div>
         );
@@ -1894,6 +1760,14 @@ export function OrderDetailsPage() {
   const [order, setOrder] = useState(null);
   const [receipts, setReceipts] = useState([]);
   const [showLabels, setShowLabels] = useState(false);
+  const [showBill, setShowBill] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  async function saveDetailReceipt(receipt) {
+    const data = await createPaymentReceipt(order.id, receipt);
+    setOrder(data.order);
+    setReceipts(await getPaymentReceipts(order.id));
+    setShowReceipt(false);
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -1914,7 +1788,7 @@ export function OrderDetailsPage() {
   }, [orderId]);
 
   return (
-    <BranchModuleShell title={order?.orderNumber || "Order Details"} subtitle="Work order details, items, receipts, and printable labels">
+    <BranchModuleShell title={order?.orderNumber || "Order Details"} subtitle="Work order details, items, receipts, and printable labels" requiredPermission="orders.view">
       {(session, branch) => {
         if (!order) return <EmptyState title="Order not found" body="This work order is not available to the current account." action={<Link href={`/branch/${branch.id}/orders`}><Button>Back to orders</Button></Link>} />;
         return (
@@ -1926,7 +1800,11 @@ export function OrderDetailsPage() {
                   <p className="mt-1 text-sm text-zinc-500">{order.customerName} · {order.customerPhone}</p>
                   <div className="mt-3 flex flex-wrap gap-2"><Badge tone={order.status}>{order.status}</Badge><Badge tone={order.paymentStatus}>{order.paymentStatus}</Badge></div>
                 </div>
-                <Button onClick={() => setShowLabels(true)}><Printer size={17} /> Print labels</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => setShowBill(true)}><Printer size={17} /> Print bill</Button>
+                  <Button onClick={() => setShowLabels(true)}><Tag size={17} /> Print labels</Button>
+                  {order.paymentStatus !== "Paid" ? <Button variant="secondary" onClick={() => setShowReceipt(true)}><WalletCards size={17} /> Receipt</Button> : null}
+                </div>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-4">
                 <Info label="Delivery date" value={order.deliveryDate} />
@@ -1956,7 +1834,9 @@ export function OrderDetailsPage() {
                 {!receipts.length ? <p className="text-sm text-zinc-500">No receipts have been added yet.</p> : null}
               </div>
             </section>
-            {showLabels ? <LabelPrintView order={order} onClose={() => setShowLabels(false)} /> : null}
+            {showBill ? <BillPrintDialog order={order} onClose={() => setShowBill(false)} /> : null}
+            {showReceipt ? <AddReceiptModal order={order} onCancel={() => setShowReceipt(false)} onSave={saveDetailReceipt} /> : null}
+            {showLabels ? <LabelPrintDialog order={order} onClose={() => setShowLabels(false)} /> : null}
           </div>
         );
       }}
@@ -1967,6 +1847,9 @@ export function OrderDetailsPage() {
 export function CustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [query, setQuery] = useState("");
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1981,51 +1864,80 @@ export function CustomersPage() {
   }, []);
 
   return (
-    <BranchModuleShell title="Customers" subtitle="Customer directory used by Create Order auto-fill">
+    <BranchModuleShell title="Customers" subtitle="Customer directory used by Create Order auto-fill" requiredPermission="customers.view">
       {(session, branch) => {
         const branchCustomers = customers
-          .filter((customer) => customer.branchId === branch.id || customer.laundryId === branch.laundryId)
+          .filter((customer) => customer.branchId === branch.id)
           .filter((customer) => [customer.name, customer.phone, customer.email].join(" ").toLowerCase().includes(query.toLowerCase()));
+        async function saveCustomer(customerId, values) {
+          try {
+            const saved = customerId ? await updateCustomer(customerId, values) : await createCustomer({ ...values, branchId: branch.id });
+            setCustomers((current) => customerId ? current.map((customer) => customer.id === saved.id ? saved : customer) : [...current, saved]);
+            setEditingCustomer(null);
+            setNotice(customerId ? `${saved.name} updated.` : `${saved.name} created.`);
+          } catch (issue) {
+            setError(getApiErrorMessage(issue, "Unable to update customer."));
+            throw issue;
+          }
+        }
+        async function removeCustomer(customer) {
+          if (!window.confirm(`Remove ${customer.name} from this branch?`)) return;
+          try {
+            await deleteCustomer(customer.id);
+            setCustomers((current) => current.filter((item) => item.id !== customer.id));
+            setNotice(`${customer.name} removed.`);
+          } catch (issue) {
+            setError(getApiErrorMessage(issue, "Unable to remove customer."));
+          }
+        }
         return (
-          <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <h2 className="text-xl font-black text-zinc-950">Customers</h2>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
-                  <Search size={17} className="text-zinc-400" />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full text-sm outline-none" placeholder="Search customers" />
-                </div>
-                <Link href={`/branch/${branch.id}/customers/create`}><Button><UserPlus size={17} /> Create customer</Button></Link>
+          <div className="customer-workspace space-y-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-700"><Users size={19} /></span><div><h2 className="text-base font-bold tracking-tight text-slate-900">Customer directory</h2><p className="mt-0.5 text-xs text-slate-500">Customers available for branch orders.</p></div></div>
+                {can(session, "customers.add") ? <button type="button" onClick={() => { setError(""); setEditingCustomer({ isNew: true }); }} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"><UserPlus size={16} /> Create customer</button> : null}
               </div>
-            </div>
-            <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
-              <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3">Customer</th>
-                    <th className="px-4 py-3">Phone</th>
-                    <th className="px-4 py-3">Email</th>
-                    <th className="px-4 py-3">Address</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {branchCustomers.map((customer) => (
-                    <tr key={customer.id}>
-                      <td className="px-4 py-4 font-bold text-zinc-950">{customer.name}</td>
-                      <td className="px-4 py-4 text-zinc-600">{customer.phone}</td>
-                      <td className="px-4 py-4 text-zinc-600">{customer.email}</td>
-                      <td className="px-4 py-4 text-zinc-600">{customer.address}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!branchCustomers.length ? <EmptyState title="No customers found" body="Create a customer before selecting them in Create Order." action={<Link href={`/branch/${branch.id}/customers/create`}><Button>Create customer</Button></Link>} /> : null}
-          </section>
+              <label className="mt-5 flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={17} className="shrink-0 text-slate-400" /><span className="sr-only">Search customers</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search by name, phone, or email" />{query ? <button type="button" onClick={() => setQuery("")} className="text-xs font-semibold text-slate-500 hover:text-slate-900">Clear</button> : null}</label>
+            </section>
+            {notice ? <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p> : null}
+            {error ? <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">Customers</h2><span className="text-xs tabular-nums text-slate-500">{branchCustomers.length} {branchCustomers.length === 1 ? "customer" : "customers"}{query ? " found" : ""}</span></div>
+              <DataTable className="[&_table]:text-sm [&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_th]:px-4 [&_th]:py-3 [&_th]:text-xs [&_td]:px-4 [&_td]:py-3 [&_tbody]:divide-slate-100" minWidth="700px" rows={branchCustomers} rowKey={(customer) => customer.id} emptyMessage={query ? "No matching customers." : "No customers found."} columns={[
+                { key: "customer", label: "Customer", render: (customer) => <p className="font-semibold text-slate-900">{customer.name}</p> },
+                { key: "phone", label: "Phone", cellClassName: "whitespace-nowrap text-slate-600", render: (customer) => customer.phone },
+                { key: "email", label: "Email", cellClassName: "text-slate-600", render: (customer) => customer.email || "—" },
+                { key: "address", label: "Address", cellClassName: "max-w-64 truncate text-slate-600", render: (customer) => customer.address || "—" },
+                { key: "actions", label: "Actions", headerClassName: "w-20", cellClassName: "w-20 whitespace-nowrap", render: (customer) => <div className="inline-flex gap-1">{can(session, "customers.edit") ? <TableActionButton label={`Edit ${customer.name}`} onClick={() => { setError(""); setEditingCustomer(customer); }}><Pencil size={15} /></TableActionButton> : null}{can(session, "customers.delete") ? <TableActionButton label={`Delete ${customer.name}`} onClick={() => removeCustomer(customer)}><Trash2 size={15} /></TableActionButton> : null}</div> },
+              ]} />
+             
+            </section>
+            {editingCustomer ? <CustomerEditDialog customer={editingCustomer} onClose={() => setEditingCustomer(null)} onSave={saveCustomer} /> : null}
+          </div>
         );
       }}
     </BranchModuleShell>
   );
+}
+
+function CustomerEditDialog({ customer, onClose, onSave }) {
+  const dialogRef = useRef(null);
+  const isNew = customer.isNew === true;
+  const [form, setForm] = useState({ name: isNew ? "" : customer.name, phone: isNew ? "" : customer.phone, email: isNew ? "" : customer.email || "", address: isNew ? "" : customer.address || "" });
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { const dialog = dialogRef.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  async function submit(event) {
+    event.preventDefault();
+    if (!form.name || !form.phone) { setError("Name and phone are required."); return; }
+    setIsSaving(true);
+    try { await onSave(isNew ? null : customer.id, form); } catch (issue) { setError(getApiErrorMessage(issue, `Unable to ${isNew ? "create" : "save"} customer.`)); setIsSaving(false); }
+  }
+  return <dialog ref={dialogRef} onCancel={onClose} className="fixed inset-0 m-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/40 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]"><form onSubmit={submit} className="flex max-h-[calc(100dvh-1.5rem)] min-h-0 flex-col sm:max-h-[calc(100dvh-2rem)]">
+    <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 sm:px-4 sm:py-3"><div><h2 className="text-sm font-bold sm:text-base">{isNew ? "Create customer" : "Edit customer"}</h2><p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">{isNew ? "Add customer contact details." : "Update contact details."}</p></div><button type="button" onClick={onClose} aria-label="Close customer editor" className="grid size-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={16} /></button></div>
+    <fieldset disabled={isSaving} className="grid min-h-0 flex-1 gap-2.5 overflow-y-auto overscroll-contain p-3 [&>label>span:first-child]:mb-1 [&>label>span:first-child]:text-[11px] sm:grid-cols-2 sm:gap-3 sm:p-4 sm:[&>label>span:first-child]:text-xs"><Field label="Name"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" autoFocus value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field><Field label="Phone"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></Field><Field label="Email"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></Field><Field label="Address"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} /></Field>{error ? <p role="alert" className="sm:col-span-2 text-xs text-rose-700 sm:text-sm">{error}</p> : null}</fieldset>
+    <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5 sm:flex-row sm:justify-end sm:gap-2 sm:px-4 sm:py-3"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:text-sm">Cancel</button><button className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 sm:h-10 sm:text-sm">{isSaving ? "Saving…" : isNew ? "Create customer" : "Save changes"}</button></div>
+  </form></dialog>;
 }
 
 export function CreateCustomerPage() {
@@ -2050,18 +1962,18 @@ export function CreateCustomerPage() {
   }
 
   return (
-    <BranchModuleShell title="Create Customer" subtitle="Add a customer for this branch">
+    <BranchModuleShell title="Create Customer" subtitle="Add a customer for this branch" requiredPermission="customers.add">
       {(session, branch) => (
-        <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Name" error={errors.name}><TextInput value={form.name} onChange={(event) => update("name", event.target.value)} error={errors.name} /></Field>
-            <Field label="Phone" error={errors.phone}><TextInput value={form.phone} onChange={(event) => update("phone", event.target.value)} error={errors.phone} /></Field>
-            <Field label="Email" error={errors.email}><TextInput value={form.email} onChange={(event) => update("email", event.target.value)} error={errors.email} /></Field>
-            <Field label="Address"><TextInput value={form.address} onChange={(event) => update("address", event.target.value)} /></Field>
+        <section className="create-customer-workspace rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+            <Field label="Name" error={errors.name}><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.name} onChange={(event) => update("name", event.target.value)} error={errors.name} /></Field>
+            <Field label="Phone" error={errors.phone}><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.phone} onChange={(event) => update("phone", event.target.value)} error={errors.phone} /></Field>
+            <Field label="Email" error={errors.email}><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.email} onChange={(event) => update("email", event.target.value)} error={errors.email} /></Field>
+            <Field label="Address"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.address} onChange={(event) => update("address", event.target.value)} /></Field>
           </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <Link href={`/branch/${branch.id}/customers`}><Button variant="secondary">Cancel</Button></Link>
-            <Button onClick={() => saveCustomer(branch)}><CheckCircle2 size={17} /> Save customer</Button>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:mt-6 sm:flex-row sm:justify-end sm:gap-3">
+            <Link className="w-full sm:w-auto" href={`/branch/${branch.id}/customers`}><Button className="w-full text-xs sm:w-auto sm:text-sm" variant="secondary">Cancel</Button></Link>
+            <Button className="w-full text-xs sm:w-auto sm:text-sm" onClick={() => saveCustomer(branch)}><CheckCircle2 size={16} /> Save customer</Button>
           </div>
         </section>
       )}
@@ -2079,11 +1991,13 @@ function useSettingsData() {
     async function loadSettingsData() {
       const session = await getSession();
       if (!session?.laundryId) return;
-      const [nextGroups, nextItems, nextSlots] = await Promise.all([getItemGroups(session.laundryId), getServiceItems(session.laundryId), getTimeSlots(session.laundryId)]);
+      // Each settings screen may be permitted independently. A denied Item Group or
+      // Time Slot request must not prevent an allowed Items request from rendering.
+      const results = await Promise.allSettled([getItemGroups(session.laundryId), getServiceItems(session.laundryId), getTimeSlots(session.laundryId)]);
       if (isMounted) {
-        setGroups(nextGroups);
-        setItems(nextItems);
-        setSlots(nextSlots);
+        setGroups(results[0].status === "fulfilled" ? results[0].value : []);
+        setItems(results[1].status === "fulfilled" ? results[1].value : []);
+        setSlots(results[2].status === "fulfilled" ? results[2].value : []);
       }
     }
     loadSettingsData();
@@ -2131,7 +2045,7 @@ export function SettingsBranchManagementPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Branch Management" subtitle="Manage every branch in this laundry business">
+    <BusinessSettingsShell title="Branch Management" subtitle="Manage every branch in this laundry business" requiredPermission="branch.view">
       {(session, business) => {
         const businessBranches = branches
           .filter((branch) => branch.laundryId === business.laundryId)
@@ -2152,7 +2066,7 @@ export function SettingsBranchManagementPage() {
                   <option>Active</option>
                   <option>Inactive</option>
                 </SelectInput>
-                {can(session, "create_branch") ? <Link href="/settings/branches/create"><Button><Plus size={17} /> Create branch</Button></Link> : null}
+                {can(session, "branch.add") ? <Link href="/settings/branches/create"><Button><Plus size={17} /> Create branch</Button></Link> : null}
               </div>
             </div>
             <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
@@ -2178,7 +2092,7 @@ export function SettingsBranchManagementPage() {
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
                           <Button variant="secondary" onClick={() => openBranch(branch.id)}>Open</Button>
-                          {can(session, "create_branch") ? <Button variant="secondary" onClick={() => toggleBranch(branch.id)}>{branch.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}
+                          {can(session, "branch.edit") ? <Button variant="secondary" onClick={() => toggleBranch(branch.id)}>{branch.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}
                         </div>
                       </td>
                     </tr>
@@ -2193,6 +2107,8 @@ export function SettingsBranchManagementPage() {
     </BusinessSettingsShell>
   );
 }
+
+export function SettingsStaffPage() { return <BusinessSettingsShell title="Staff Management" subtitle="Create staff, assign their branch, and set permissions" requiredPermission="staff_management.view"><StaffManagement /></BusinessSettingsShell>; }
 
 export function SettingsItemGroupsPage() {
   const { groups, setGroups } = useSettingsData();
@@ -2218,7 +2134,7 @@ export function SettingsItemGroupsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Item Groups" subtitle="Create and manage item groups used across the laundry business">
+    <BusinessSettingsShell title="Item Groups" subtitle="Create and manage item groups used across the laundry business" requiredPermission="item_group.view">
       {(session, business) => {
         const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
         return (
@@ -2238,13 +2154,13 @@ export function SettingsItemGroupsPage() {
                     <tr key={group.id}>
                       <td className="px-4 py-4 font-bold text-zinc-950">{group.name}</td>
                       <td className="px-4 py-4"><Badge tone={group.status}>{group.status}</Badge></td>
-                      <td className="px-4 py-4"><Button variant="secondary" onClick={() => toggleGroup(group.id)}>{group.status === "Active" ? "Deactivate" : "Activate"}</Button></td>
+                      <td className="px-4 py-4">{can(session, "item_group.edit") ? <Button variant="secondary" onClick={() => toggleGroup(group.id)}>{group.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <Button className="mt-5" onClick={() => setShowGroupForm((value) => !value)}><Plus size={17} /> Create item group</Button>
+            {can(session, "item_group.add") ? <Button className="mt-5" onClick={() => setShowGroupForm((value) => !value)}><Plus size={17} /> Create item group</Button> : null}
             {showGroupForm ? (
               <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
                 <TextInput value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Group name, e.g. Dry Cleaning" />
@@ -2283,7 +2199,7 @@ export function SettingsItemsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types">
+    <BusinessSettingsShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types" requiredPermission="item.view">
       {(session, business) => {
         const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
         const businessItems = items.filter((item) => item.laundryId === business.laundryId);
@@ -2314,14 +2230,14 @@ export function SettingsItemsPage() {
                         <td className="px-4 py-4 text-zinc-600">{item.unitType}</td>
                         <td className="px-4 py-4 font-bold text-zinc-950">{formatMoney(item.price)}</td>
                         <td className="px-4 py-4"><Badge tone={item.status}>{item.status}</Badge></td>
-                        <td className="px-4 py-4"><Button variant="secondary" onClick={() => toggleItem(item.id)}>{item.status === "Active" ? "Deactivate" : "Activate"}</Button></td>
+                        <td className="px-4 py-4">{can(session, "item.edit") ? <Button variant="secondary" onClick={() => toggleItem(item.id)}>{item.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <Button className="mt-5" onClick={() => setShowItemForm((value) => !value)}><Plus size={17} /> Create item</Button>
+            {can(session, "item.add") ? <Button className="mt-5" onClick={() => setShowItemForm((value) => !value)}><Plus size={17} /> Create item</Button> : null}
             {showItemForm ? (
               <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
                 <div className="grid gap-4 md:grid-cols-3">
@@ -2387,7 +2303,7 @@ export function SettingsTimeSlotsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Time Slots" subtitle="Create and manage delivery time slots used across all branches">
+    <BusinessSettingsShell title="Time Slots" subtitle="Create and manage delivery time slots used across all branches" requiredPermission="time_slot.view">
       {(session, business) => {
         const businessSlots = slots.filter((slot) => slot.laundryId === business.laundryId);
         return (
@@ -2407,13 +2323,13 @@ export function SettingsTimeSlotsPage() {
                     <tr key={slot.id}>
                       <td className="px-4 py-4 font-bold text-zinc-950">{slot.label}</td>
                       <td className="px-4 py-4"><Badge tone={slot.status}>{slot.status}</Badge></td>
-                      <td className="px-4 py-4"><Button variant="secondary" onClick={() => toggleSlot(slot.id)}>{slot.status === "Active" ? "Deactivate" : "Activate"}</Button></td>
+                      <td className="px-4 py-4">{can(session, "time_slot.edit") ? <Button variant="secondary" onClick={() => toggleSlot(slot.id)}>{slot.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <Button className="mt-5" onClick={() => setShowSlotForm((value) => !value)}><Plus size={17} /> Create time slot</Button>
+            {can(session, "time_slot.add") ? <Button className="mt-5" onClick={() => setShowSlotForm((value) => !value)}><Plus size={17} /> Create time slot</Button> : null}
             {showSlotForm ? (
               <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
                 <TextInput value={slotLabel} onChange={(event) => setSlotLabel(event.target.value)} placeholder="Example: 06:00 PM - 08:00 PM" />

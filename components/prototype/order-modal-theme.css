@@ -1,0 +1,173 @@
+.order-action-modal {
+  border: 1px solid var(--color-slate-200);
+  border-radius: 0.75rem;
+  color: var(--color-slate-900);
+  box-shadow: 0 24px 48px rgb(15 23 42 / 0.14);
+}
+
+.order-action-modal::backdrop {
+  background: rgb(15 23 42 / 0.4);
+}
+
+.order-action-modal button:focus-visible,
+.order-action-modal input:focus-visible,
+.order-action-modal select:focus-visible,
+.order-action-modal textarea:focus-visible {
+  outline: 2px solid var(--color-slate-400);
+  outline-offset: 2px;
+}
+
+.order-action-modal .modal-header {
+  border-color: var(--color-slate-200);
+  padding: 1rem 1.25rem;
+}
+
+.order-action-modal .modal-title {
+  font-size: 1rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-slate-900);
+}
+
+.order-action-modal .modal-subtitle,
+.order-action-modal .modal-help {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--color-slate-500);
+}
+
+.order-action-modal .modal-close {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.5rem;
+  color: var(--color-slate-500);
+}
+
+.order-action-modal .modal-close:hover {
+  background: var(--color-slate-100);
+  color: var(--color-slate-900);
+}
+
+.order-action-modal input,
+.order-action-modal select,
+.order-action-modal textarea {
+  border-color: var(--color-slate-200) !important;
+  background: var(--color-slate-50) !important;
+  color: var(--color-slate-900);
+  font-size: 0.8125rem;
+}
+
+.order-action-modal .modal-footer {
+  border-color: var(--color-slate-200);
+  background: var(--color-slate-50);
+  padding: 0.875rem 1.25rem;
+}
+
+.order-action-modal .modal-primary {
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  background: var(--color-slate-900) !important;
+  color: white;
+  font-size: 0.8125rem;
+}
+
+.order-action-modal .modal-primary:hover { background: var(--color-slate-800) !important; }
+
+.order-action-modal .modal-secondary {
+  min-height: 2.5rem;
+  border: 1px solid var(--color-slate-200);
+  border-radius: 0.5rem;
+  background: white;
+  color: var(--color-slate-700);
+  font-size: 0.8125rem;
+}
+
+.order-action-modal .modal-secondary:hover { background: var(--color-slate-100); }
+
+.order-action-modal .modal-table thead {
+  background: var(--color-slate-50);
+  color: var(--color-slate-500);
+  font-size: 0.6875rem;
+}
+
+.order-action-modal .modal-table tr { border-color: var(--color-slate-100); }
+
+@media (max-width: 768px) {
+  .order-action-modal .modal-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .order-action-modal .modal-title {
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+  }
+
+  .order-action-modal .modal-subtitle,
+  .order-action-modal .modal-help {
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
+  .order-action-modal .modal-close {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .order-action-modal fieldset {
+    gap: 0.75rem;
+  }
+
+  .order-action-modal label,
+  .order-action-modal legend,
+  .order-action-modal h3,
+  .order-action-modal p {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .order-action-modal input,
+  .order-action-modal select {
+    height: 2.25rem;
+    font-size: 0.75rem;
+  }
+
+  .order-action-modal textarea {
+    font-size: 0.75rem;
+  }
+
+  .order-action-modal .modal-primary,
+  .order-action-modal .modal-secondary {
+    min-height: 2.25rem;
+    padding-inline: 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .order-action-modal .modal-table thead {
+    font-size: 0.625rem;
+  }
+
+  .order-action-modal .modal-table {
+    font-size: 0.6875rem;
+  }
+
+  .order-action-modal .modal-table th {
+    padding: 0.5rem;
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+  }
+
+  .order-action-modal .modal-table td {
+    padding: 0.625rem 0.5rem;
+    line-height: 1rem;
+  }
+
+  .order-action-modal .modal-table input {
+    width: 3.5rem;
+    height: 2.25rem;
+    padding-inline: 0.5rem;
+    font-size: 0.75rem;
+  }
+}
