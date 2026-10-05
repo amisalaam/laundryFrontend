@@ -41,6 +41,6 @@ export default function DataTable({
   );
 }
 
-export function TableActionButton({ label, onClick, children, danger = false, disabled = false }) {
-  return <button type="button" onClick={onClick} disabled={disabled} title={label} aria-label={label} className={`inline-flex size-9 items-center justify-center rounded-lg transition focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "text-rose-600 hover:bg-rose-50" : "text-zinc-600 hover:bg-zinc-100"}`}>{children}</button>;
+export function TableActionButton({ label, onClick, children, danger = false, disabled = false, className = "" }) {
+  return <button type="button" onClick={onClick} disabled={disabled} title={label} aria-label={label} className={`inline-flex size-9 items-center justify-center rounded-lg transition focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "text-rose-600 hover:bg-rose-50" : "text-zinc-600 hover:bg-zinc-100"} ${className}`}>{children}</button>;
 }

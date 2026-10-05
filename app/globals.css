@@ -69,7 +69,8 @@ textarea:focus {
   .app-main:has(.order-workspace),
   .app-main:has(.customer-workspace),
   .app-main:has(.delivery-workspace),
-  .app-main:has(.staff-workspace) {
+  .app-main:has(.staff-workspace),
+  .app-main:has(.dashboard-workspace) {
     padding-top: 1rem;
     padding-bottom: 1rem;
   }
@@ -315,8 +316,8 @@ textarea:focus {
   }
 
   .app-sidebar > div:first-child {
-    height: 4rem;
-    padding-inline: 0.875rem;
+    height: 3.75rem;
+    padding-inline: 0.75rem;
   }
 
   .app-sidebar > div:first-child .size-11 {
@@ -335,19 +336,19 @@ textarea:focus {
   }
 
   .app-sidebar nav {
-    padding: 1rem 0.75rem;
+    padding: 0.75rem 0.5rem;
   }
 
   .app-sidebar nav p {
-    padding: 1rem 0.625rem 0.375rem;
+    padding: 0.75rem 0.5rem 0.25rem;
     font-size: 0.625rem;
     line-height: 0.875rem;
     letter-spacing: 0.13em;
   }
 
   .app-sidebar nav a {
-    gap: 0.625rem;
-    padding: 0.625rem;
+    gap: 0.5rem;
+    padding: 0.5rem;
     font-size: 0.75rem;
     line-height: 1rem;
   }
@@ -363,11 +364,11 @@ textarea:focus {
   }
 
   .app-sidebar > div:last-child {
-    padding: 0.5rem 0.75rem 0.75rem;
+    padding: 0.375rem 0.5rem 0.5rem;
   }
 
   .app-sidebar > div:last-child > div {
-    padding: 0.625rem;
+    padding: 0.5rem;
   }
 
   .app-sidebar > div:last-child p:first-child {
@@ -379,5 +380,170 @@ textarea:focus {
     margin-top: 0.25rem;
     font-size: 0.625rem;
     line-height: 0.875rem;
+  }
+
+  .dashboard-workspace {
+    gap: 0.75rem;
+  }
+
+  .dashboard-workspace > section {
+    padding: 0.875rem;
+  }
+
+  .dashboard-workspace > .grid {
+    gap: 0.75rem;
+  }
+
+  /* .dashboard-workspace > .grid > .rounded-xl,
+  .dashboard-workspace > .grid > section {
+    padding: 0.875rem;
+  } */
+
+  .dashboard-workspace .text-3xl {
+    font-size: 1.25rem;
+    line-height: 1.5rem;
+  }
+
+  .dashboard-workspace .text-2xl {
+    font-size: 1.125rem;
+    line-height: 1.375rem;
+  }
+
+  .dashboard-workspace .text-base {
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+  }
+
+  .dashboard-workspace .text-sm {
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
+  .dashboard-workspace .text-xs {
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+  }
+
+  .dashboard-workspace .p-5,
+  .dashboard-workspace .px-5 {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+  }
+
+  .dashboard-workspace .p-5,
+  .dashboard-workspace .py-4 {
+    padding-top: 0.875rem;
+    padding-bottom: 0.875rem;
+  }
+
+  .dashboard-workspace .mt-5 {
+    margin-top: 0.75rem;
+  }
+
+  .dashboard-workspace .gap-4,
+  .dashboard-workspace .gap-5 {
+    gap: 0.75rem;
+  }
+
+  .branch-selection-workspace {
+    padding: 1rem;
+  }
+
+  .branch-selection-workspace > div {
+    gap: 0.75rem;
+  }
+
+  .branch-selection-workspace > div > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  .branch-selection-workspace header,
+  .branch-selection-workspace section {
+    gap: 0.75rem;
+    padding: 0.875rem;
+  }
+
+  .branch-selection-workspace h1 {
+    margin-top: 0.625rem;
+    font-size: 1.125rem;
+    line-height: 1.375rem;
+  }
+
+  .branch-selection-workspace h2 {
+    font-size: 0.9375rem;
+    line-height: 1.125rem;
+  }
+
+  .branch-selection-workspace p,
+  .branch-selection-workspace button,
+  .branch-selection-workspace a {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .branch-selection-workspace .grid {
+    gap: 0.75rem;
+  }
+
+  .branch-selection-workspace .space-y-5 > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  .branch-selection-workspace .grid > [role="button"] {
+    padding: 0.875rem;
+  }
+
+  .branch-selection-workspace .grid > [role="button"] .mt-4 {
+    margin-top: 0.75rem;
+  }
+
+  .branch-selection-workspace .grid > [role="button"] .text-sm {
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
+  .branch-selection-workspace .grid > [role="button"] .text-xs {
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+  }
+
+  .branch-management-workspace .branch-management-filters {
+    margin-top: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .branch-management-workspace .branch-management-filters > label,
+  .branch-management-workspace .branch-management-filters > select {
+    height: 2.5rem;
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
+  .branch-management-workspace .branch-management-filters > label {
+    padding-inline: 0.75rem;
+  }
+
+  .branch-management-workspace .branch-management-filters > label svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .branch-management-workspace .branch-management-filters > select {
+    width: 4.75rem;
+    padding-inline: 0.5rem;
+  }
+
+  .branch-management-workspace td:nth-child(5) > span {
+    padding: 0.24rem 0.4rem;
+    font-size: 0.6175rem;
+    line-height: 0.9375rem;
+  }
+
+  .item-groups-workspace td:nth-child(2) > span,
+  .items-workspace td:nth-child(6) > span,
+  .time-slots-workspace td:nth-child(2) > span {
+    padding: 0.24rem 0.4rem;
+    font-size: 0.6175rem;
+    line-height: 0.9375rem;
   }
 }

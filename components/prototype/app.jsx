@@ -40,6 +40,8 @@ import {
   Sparkles,
   Store,
   Tag,
+  ToggleLeft,
+  ToggleRight,
   Trash2,
   Truck,
   UserPlus,
@@ -52,7 +54,11 @@ import { authenticate, can, getAccessibleBranches, getCachedSession, getSession,
 import {
   createBranch,
   createCustomer,
+  deleteBranch,
   deleteCustomer,
+  deleteItemGroup,
+  deleteServiceItem,
+  deleteTimeSlot,
   createItemGroup,
   createOrder,
   createPaymentReceipt,
@@ -332,20 +338,21 @@ function EmptyState({ title, body, action }) {
 
 function ConfirmModal({ title, body, confirmLabel = "Confirm", onCancel, onConfirm }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/40 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600">
-            <AlertTriangle size={20} />
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 sm:grid sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
+      <div className="mx-auto my-0 w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white sm:my-auto">
+        <div className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600 sm:size-10">
+            <AlertTriangle size={16} className="sm:hidden" />
+            <AlertTriangle size={20} className="hidden sm:block" />
           </span>
-          <div>
-            <h2 className="text-lg font-bold text-zinc-950">{title}</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">{body}</p>
+          <div className="min-w-0">
+            <h2 id="confirmation-title" className="text-sm font-bold text-slate-900 sm:text-base">{title}</h2>
+            <p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-xs">{body}</p>
           </div>
         </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-          <Button variant="danger" onClick={onConfirm}>{confirmLabel}</Button>
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4">
+          <button type="button" onClick={onCancel} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:text-sm">Cancel</button>
+          <button type="button" onClick={onConfirm} className="h-9 rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white hover:bg-rose-700 sm:text-sm">{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -518,12 +525,12 @@ function ProfileDropdown({ session, branches = [] }) {
 
 const navigationHeaderHeight = "h-20";
 
-function TopBar({ session, title, subtitle, branches, onMenu }) {
+function TopBar({ session, title, subtitle, branches, onMenu, hideMenu = false }) {
   return (
     <header className={classNames(navigationHeaderHeight, "app-topbar sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur")}>
       <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <button className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu size={21} /></button>
+          {!hideMenu ? <button className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu size={21} /></button> : null}
           <div className="min-w-0"><h1 className="topbar-title truncate text-lg font-black text-slate-950">{title}</h1>{subtitle ? <p className="topbar-subtitle truncate text-sm text-slate-500">{subtitle}</p> : null}</div>
         </div>
         <div className="hidden h-12 min-w-0 max-w-lg flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 md:flex"><Search size={17} className="shrink-0 text-slate-400" /><input aria-label="Search orders, branches, customers" className="min-w-0 w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" placeholder="Search orders, branches, customers" /></div>
@@ -550,10 +557,9 @@ function AppShell({ type, title, subtitle, children }) {
   const [branches, setBranchesState] = useState(() => getCachedBranches() || []);
   const isSettingsArea = type === "business" && pathname.startsWith("/settings");
   const isOwner = session?.role === "Laundry Owner";
-  const settingsPermission = { "Branch Management": "branch.view", "Create Branch": "branch.add", "Item Groups": "item_group.view", "Items": "item.view", "Time Slots": "time_slot.view" };
+  const settingsPermission = { "Branch Management": "branch.view", "Item Groups": "item_group.view", "Items": "item.view", "Time Slots": "time_slot.view" };
   const settingsLinks = [
     { href: "/settings/branches", label: "Branch Management", icon: Store },
-    { href: "/settings/branches/create", label: "Create Branch", icon: Plus },
     { href: "/settings/item-groups", label: "Item Groups", icon: Tag },
     { href: "/settings/items", label: "Items", icon: PackageCheck },
     { href: "/settings/time-slots", label: "Time Slots", icon: Clock3 },
@@ -1122,24 +1128,24 @@ function BranchCard({ branch, recentBranchId, onOpen }) {
         }
       } : undefined}
       className={classNames(
-        "block w-full rounded-lg border border-zinc-200 bg-white p-4 text-left shadow-sm",
-        onOpen ? "cursor-pointer transition hover:border-cyan-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-500" : "",
+        "block w-full rounded-xl border border-slate-200 bg-white p-5 text-left",
+        onOpen ? "cursor-pointer transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300" : "",
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-bold text-zinc-950">{branch.name}</h2>
-          <p className="text-sm font-semibold text-zinc-500">{branch.code}</p>
+          <h2 className="text-base font-bold tracking-tight text-slate-900">{branch.name}</h2>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{branch.code}</p>
         </div>
         <Badge tone={branch.status}>{branch.status}</Badge>
       </div>
-      <div className="mt-4 space-y-2 text-sm text-zinc-600">
+      <div className="mt-4 space-y-2 text-xs leading-5 text-slate-600">
         <p>{branch.city}, {branch.state} {branch.postalCode}</p>
         <p>{branch.phone}</p>
-        <p>Manager: <span className="font-semibold text-zinc-800">{branch.manager}</span></p>
+        <p>Manager: <span className="font-semibold text-slate-800">{branch.manager}</span></p>
         <p>{branch.staffCount} staff</p>
       </div>
-      {recentBranchId === branch.id ? <p className="mt-3 text-xs font-bold uppercase text-cyan-700">Recently opened</p> : null}
+      {recentBranchId === branch.id ? <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-600">Recently opened</p> : null}
     </div>
   );
 }
@@ -1169,23 +1175,18 @@ export function BranchSelectionPage() {
   if (!isReady) return <LoadingShell />;
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-8 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-bold uppercase text-cyan-700">
-              <Store size={14} />
-              Business Home
+    <div className="min-h-screen bg-white">
+      <TopBar session={session} title="Branch selection" subtitle="Choose your workspace" branches={branches} onMenu={() => {}} hideMenu />
+      <main className="branch-selection-workspace px-4 py-6 lg:px-6">
+      <div className="mx-auto max-w-7xl space-y-4">
+        <header className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 p-6 text-white">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Business home</p>
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Select a branch</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-300">Choose a branch to open daily operations, or use business settings to create your first one.</p>
             </div>
-            <h1 className="mt-3 text-3xl font-black text-zinc-950">Select a branch</h1>
-            <p className="mt-1 text-sm text-zinc-500">Choose a branch to open daily operations, or use branch settings to create your first one.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-right sm:block">
-              <span className="block text-sm font-bold text-zinc-950">{session?.name}</span>
-              <span className="block text-xs text-zinc-500">{session?.role}</span>
-            </span>
-            <Button variant="secondary" onClick={async () => { await logout(); router.push("/login"); }}><LogOut size={17} /> Logout</Button>
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-700 bg-slate-800 text-slate-100"><Store size={21} /></span>
           </div>
         </header>
         {(() => {
@@ -1198,17 +1199,17 @@ export function BranchSelectionPage() {
           router.push(`/branch/${branchId}/dashboard`);
         }
         return (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {settingsHref ? (
-              <section className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <section className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cyan-50 text-cyan-700"><Settings size={20} /></span>
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Settings size={19} /></span>
                   <div>
-                    <h2 className="text-lg font-bold text-zinc-950">Business Settings</h2>
-                    <p className="mt-1 text-sm text-zinc-500">Manage branches, service items, item groups, and delivery time slots in one place.</p>
+                    <h2 className="text-base font-bold tracking-tight text-slate-900">Business settings</h2>
+                    <p className="mt-1 text-sm text-slate-500">Manage branches, service items, item groups, and delivery time slots in one place.</p>
                   </div>
                 </div>
-                <Link href={settingsHref}><Button variant="secondary"><Settings size={17} /> Manage settings</Button></Link>
+                <Link href={settingsHref}><Button variant="secondary"><Settings size={16} /> Manage settings</Button></Link>
               </section>
             ) : null}
             {branches.length ? (
@@ -1228,7 +1229,8 @@ export function BranchSelectionPage() {
         );
         })()}
       </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -1343,7 +1345,7 @@ function BranchDashboardContent({ branch, wasCreated = false }) {
             </section>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard icon={ClipboardList} label="Today's orders" value={todayOrders.length} detail={`${branchOrders.length} total work orders`} />
-              <StatCard icon={PackageCheck} label="Orders in progress" value={processingOrders.length} detail="Pending, processing, approved" />
+              {/* <StatCard icon={PackageCheck} label="Orders in progress" value={processingOrders.length} detail="Pending, processing, approved" /> */}
               <StatCard icon={Truck} label="Pending delivery" value={pendingDeliveryOrders.length} detail="Ready to hand over" />
               <StatCard icon={CheckCircle2} label="Delivered orders" value={deliveredOrders.length} detail="Completed handovers" />
               <StatCard icon={DollarSign} label="Collected revenue" value={formatMoney(revenueTotal)} detail="Receipt payments" />
@@ -1447,7 +1449,7 @@ function DashboardChart({ orders = [] }) {
 function Panel({ icon: Icon, title, items, emptyText = "No records found." }) {
   return <section className={dashboardCard}>
     <div className="border-b border-slate-200 p-5"><DashboardHeading icon={Icon} title={title}><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold tabular-nums text-slate-600">{items.length}</span></DashboardHeading></div>
-    {items.length ? <ul className="divide-y divide-slate-100">{items.map((item, index) => <li key={`${item}-${index}`} className="flex items-center gap-3 px-5 py-4 text-sm text-slate-700"><span className="size-1.5 shrink-0 rounded-full bg-slate-400" aria-hidden="true" /><span className="min-w-0 break-words">{item}</span></li>)}</ul> : <div className="flex items-center gap-3 px-5 py-7"><CheckCircle2 size={20} className="shrink-0 text-slate-400" aria-hidden="true" /><p className="text-sm text-slate-500">{emptyText}</p></div>}
+    {items.length ? <ul className="divide-y divide-slate-100">{items.map((item, index) => <li key={`${item}-${index}`} className="flex items-center gap-3 px-5 py-4 text-sm text-slate-700"><span className="size-1.5 shrink-0 rounded-full bg-slate-400" aria-hidden="true" /><span className="min-w-0 break-words">{item}</span></li>)}</ul> : <div className="flex items-center gap-3 px-5 py-3"><CheckCircle2 size={20} className="shrink-0 text-slate-400" aria-hidden="true" /><p className="text-sm text-slate-500">{emptyText}</p></div>}
   </section>;
 }
 
@@ -1897,7 +1899,7 @@ export function CustomersPage() {
                 <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-700"><Users size={19} /></span><div><h2 className="text-base font-bold tracking-tight text-slate-900">Customer directory</h2><p className="mt-0.5 text-xs text-slate-500">Customers available for branch orders.</p></div></div>
                 {can(session, "customers.add") ? <button type="button" onClick={() => { setError(""); setEditingCustomer({ isNew: true }); }} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"><UserPlus size={16} /> Create customer</button> : null}
               </div>
-              <label className="mt-5 flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={17} className="shrink-0 text-slate-400" /><span className="sr-only">Search customers</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search by name, phone, or email" />{query ? <button type="button" onClick={() => setQuery("")} className="text-xs font-semibold text-slate-500 hover:text-slate-900">Clear</button> : null}</label>
+              <label className="mt-5 flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={17} className="shrink-0 text-slate-400" /><span className="sr-only">Search customers</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search by name, phone, or email" />{query ? <button type="button" onClick={() => setQuery("")} className="text-xs font-semibold text-slate-500 hover:text-slate-900">Clear</button> : null}</label>
             </section>
             {notice ? <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p> : null}
             {error ? <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
@@ -2010,14 +2012,17 @@ function useSettingsData() {
 }
 
 export function SettingsCreateBranchPage() {
-  return <CreateBranchPage />;
+  return <SettingsBranchManagementPage initialCreate />;
 }
 
-export function SettingsBranchManagementPage() {
+export function SettingsBranchManagementPage({ initialCreate = false }) {
   const [branches, setBranches] = useState([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
-  const router = useRouter();
+  const [creatingBranch, setCreatingBranch] = useState(initialCreate);
+  const [editingBranch, setEditingBranch] = useState(null);
+  const [viewingBranch, setViewingBranch] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -2031,17 +2036,46 @@ export function SettingsBranchManagementPage() {
     };
   }, []);
 
-  function openBranch(branchId) {
-    updateCurrentBranch(branchId);
-    router.push(`/branch/${branchId}/dashboard`);
-  }
-
   async function toggleBranch(branchId) {
     const nextBranches = branches.map((branch) => branch.id === branchId ? { ...branch, status: branch.status === "Active" ? "Inactive" : "Active" } : branch);
     const target = nextBranches.find((branch) => branch.id === branchId);
-    await updateBranch(branchId, { status: target.status });
+    const updated = await updateBranch(branchId, { status: target.status });
+    const savedBranches = branches.map((branch) => branch.id === branchId ? updated : branch);
+    await saveBranches(savedBranches);
+    setBranches(savedBranches);
+  }
+
+  async function persistBranchEdits(payload) {
+    const updated = await updateBranch(payload.id, payload);
+    const nextBranches = branches.map((branch) => branch.id === updated.id ? updated : branch);
     await saveBranches(nextBranches);
     setBranches(nextBranches);
+    setEditingBranch(null);
+  }
+
+  async function saveBranchEdits(payload) {
+    const currentBranch = branches.find((branch) => branch.id === payload.id);
+    if (currentBranch && currentBranch.status !== payload.status) {
+      setEditingBranch(null);
+      setConfirmation({ type: "edit-status", branch: currentBranch, payload });
+      return;
+    }
+    await persistBranchEdits(payload);
+  }
+
+  async function removeBranch(branch) {
+    await deleteBranch(branch.id);
+    const nextBranches = branches.filter((item) => item.id !== branch.id);
+    await saveBranches(nextBranches);
+    setBranches(nextBranches);
+  }
+
+  async function saveNewBranch(payload, business) {
+    const created = await createBranch({ ...payload, laundryId: business.laundryId });
+    const nextBranches = [created, ...branches.filter((branch) => branch.id !== created.id)];
+    await saveBranches(nextBranches);
+    setBranches(nextBranches);
+    setCreatingBranch(false);
   }
 
   return (
@@ -2053,82 +2087,144 @@ export function SettingsBranchManagementPage() {
           .filter((branch) => status === "All" || branch.status === status)
           .filter((branch) => [branch.name, branch.code, branch.city, branch.manager].join(" ").toLowerCase().includes(query.toLowerCase()));
         return (
-          <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <h2 className="text-xl font-black text-zinc-950">Branches</h2>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
-                  <Search size={17} className="text-zinc-400" />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full text-sm outline-none" placeholder="Search branch" />
+          <div className="branch-management-workspace staff-workspace space-y-4 text-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Store size={20} /></span>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold tracking-tight text-slate-900"><span className="sm:hidden">Branches</span><span className="hidden sm:inline">Branch management</span></h2>
+                    <p className="mt-0.5 max-w-36 text-xs text-slate-500 sm:max-w-none">Manage branch locations and availability.</p>
+                  </div>
                 </div>
-                <SelectInput value={status} onChange={(event) => setStatus(event.target.value)}>
+                {can(session, "branch.add") ? <button type="button" onClick={() => setCreatingBranch(true)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto"><Plus size={16} />Create branch</button> : null}
+              </div>
+              <div className="branch-management-filters mt-5 flex gap-2">
+                <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100">
+                  <Search size={18} className="shrink-0 text-slate-400" />
+                  <span className="sr-only">Search branches</span>
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search branches" />
+                </label>
+                <select aria-label="Filter branch status" value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none">
                   <option>All</option>
                   <option>Active</option>
                   <option>Inactive</option>
-                </SelectInput>
-                {can(session, "branch.add") ? <Link href="/settings/branches/create"><Button><Plus size={17} /> Create branch</Button></Link> : null}
+                </select>
               </div>
-            </div>
-            <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
-              <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3">Branch</th>
-                    <th className="px-4 py-3">Location</th>
-                    <th className="px-4 py-3">Manager</th>
-                    <th className="px-4 py-3">Hours</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {businessBranches.map((branch) => (
-                    <tr key={branch.id}>
-                      <td className="px-4 py-4"><p className="font-bold text-zinc-950">{branch.name}</p><p className="text-xs font-semibold text-zinc-500">{branch.code}</p></td>
-                      <td className="px-4 py-4 text-zinc-600">{branch.city}, {branch.state}</td>
-                      <td className="px-4 py-4 text-zinc-600">{branch.manager}</td>
-                      <td className="px-4 py-4 text-zinc-600">{branch.openingTime}-{branch.closingTime}</td>
-                      <td className="px-4 py-4"><Badge tone={branch.status}>{branch.status}</Badge></td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <Button variant="secondary" onClick={() => openBranch(branch.id)}>Open</Button>
-                          {can(session, "branch.edit") ? <Button variant="secondary" onClick={() => toggleBranch(branch.id)}>{branch.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!businessBranches.length ? <EmptyState title="No branches found" body="No branch records match these filters." /> : null}
-          </section>
+            </section>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <h2 className="text-xs font-semibold text-slate-900">Branch directory</h2>
+                <span className="text-xs tabular-nums text-slate-500">{businessBranches.length} {businessBranches.length === 1 ? "branch" : "branches"}</span>
+              </div>
+              <DataTable
+                className="[&_table]:text-sm [&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_th]:px-3 [&_th]:py-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-3 [&_tbody]:divide-slate-100"
+                columns={[
+                  { key: "branch", label: "Branch", cellClassName: "min-w-48", render: (branch) => <><p className="font-semibold text-slate-900">{branch.name}</p><p className="mt-0.5 text-xs text-slate-500">{branch.code}</p></> },
+                  { key: "location", label: "Location", cellClassName: "whitespace-nowrap text-slate-600", render: (branch) => `${branch.city}, ${branch.state}` },
+                  { key: "manager", label: "Manager", cellClassName: "whitespace-nowrap text-slate-600", render: (branch) => branch.manager || "—" },
+                  { key: "hours", label: "Hours", cellClassName: "whitespace-nowrap text-slate-600", render: (branch) => `${branch.openingTime}–${branch.closingTime}` },
+                  { key: "status", label: "Status", cellClassName: "whitespace-nowrap", render: (branch) => <Badge tone={branch.status}>{branch.status}</Badge> },
+                  { key: "actions", label: "Actions", headerClassName: "w-40", cellClassName: "w-40 whitespace-nowrap", render: (branch) => <div className="inline-flex gap-1"><TableActionButton label={`View ${branch.name}`} onClick={() => setViewingBranch(branch)}><Eye size={15} /></TableActionButton>{can(session, "branch.edit") ? <><TableActionButton label={`Edit ${branch.name}`} onClick={() => setEditingBranch(branch)}><Pencil size={15} /></TableActionButton>{branch.status === "Active" ? <TableActionButton danger label={`Deactivate ${branch.name}`} onClick={() => setConfirmation({ type: "status", branch })}><ToggleRight size={17} /></TableActionButton> : <TableActionButton className="text-emerald-600 hover:bg-emerald-50" label={`Activate ${branch.name}`} onClick={() => setConfirmation({ type: "status", branch })}><ToggleLeft size={17} /></TableActionButton>}</> : null}{can(session, "branch.delete") ? <TableActionButton danger label={`Delete ${branch.name}`} onClick={() => setConfirmation({ type: "delete", branch })}><Trash2 size={15} /></TableActionButton> : null}</div> },
+                ]}
+                rows={businessBranches}
+                rowKey={(branch) => branch.id}
+                minWidth="760px"
+                emptyMessage="No branches found."
+              />
+            </section>
+            {creatingBranch ? <BranchEditor branch={INITIAL_BRANCH_FORM} mode="create" onClose={() => setCreatingBranch(false)} onSave={(payload) => saveNewBranch(payload, business)} /> : null}
+            {viewingBranch ? <BranchDetailsDialog branch={viewingBranch} onClose={() => setViewingBranch(null)} /> : null}
+            {editingBranch ? <BranchEditor branch={editingBranch} onClose={() => setEditingBranch(null)} onSave={saveBranchEdits} /> : null}
+            {confirmation ? <ConfirmModal title={confirmation.type === "delete" ? "Delete branch?" : `${(confirmation.type === "edit-status" ? confirmation.payload.status : confirmation.branch.status === "Active" ? "Inactive" : "Active") === "Active" ? "Activate" : "Deactivate"} branch?`} body={confirmation.type === "delete" ? `${confirmation.branch.name} will be removed from branch selection and daily operations.` : `${confirmation.branch.name} will be ${(confirmation.type === "edit-status" ? confirmation.payload.status : confirmation.branch.status === "Active" ? "Inactive" : "Active") === "Active" ? "active" : "inactive"} for daily operations.`} confirmLabel={confirmation.type === "delete" ? "Delete branch" : (confirmation.type === "edit-status" ? confirmation.payload.status : confirmation.branch.status === "Active" ? "Inactive" : "Active") === "Active" ? "Activate" : "Deactivate"} onCancel={() => setConfirmation(null)} onConfirm={async () => { if (confirmation.type === "delete") await removeBranch(confirmation.branch); else if (confirmation.type === "edit-status") await persistBranchEdits(confirmation.payload); else await toggleBranch(confirmation.branch.id); setConfirmation(null); }} /> : null}
+          </div>
         );
       }}
     </BusinessSettingsShell>
   );
 }
 
+function BranchDetailsDialog({ branch, onClose }) {
+  const details = [
+    ["Branch code", branch.code],
+    ["Status", branch.status],
+    ["Manager", branch.manager],
+    ["Phone", branch.phone],
+    ["Email", branch.email],
+    ["Address", branch.address],
+    ["Location", [branch.city, branch.state, branch.postalCode].filter(Boolean).join(", ")],
+    ["Operating hours", [branch.openingTime, branch.closingTime].filter(Boolean).join(" – ")],
+  ];
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 sm:grid sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Branch details">
+    <div className="mx-auto my-0 flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white sm:my-auto">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4"><div><h2 className="text-sm font-bold text-slate-900 sm:text-base">{branch.name}</h2><p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-xs">Branch details</p></div><button type="button" onClick={onClose} className="grid size-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:size-8" aria-label="Close"><X size={16} /></button></div>
+      <dl className="grid gap-x-6 gap-y-3 p-4 sm:grid-cols-2 sm:p-5">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-[11px] font-semibold text-slate-500 sm:text-xs">{label}</dt><dd className="mt-1 break-words text-xs font-medium text-slate-800 sm:text-sm">{value || "—"}</dd></div>)}</dl>
+      <div className="flex justify-end border-t border-slate-200 px-4 py-3 sm:px-5 sm:py-4"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:text-sm">Close</button></div>
+    </div>
+  </div>;
+}
+
+function BranchEditor({ branch, mode = "edit", onClose, onSave }) {
+  const [form, setForm] = useState(() => ({ ...INITIAL_BRANCH_FORM, ...branch }));
+  function update(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 sm:grid sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Edit branch">
+      <div className="mx-auto my-0 flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white sm:my-auto sm:max-h-[calc(100dvh-2rem)]">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4"><div><h2 className="text-sm font-bold text-slate-900 sm:text-base">{mode === "create" ? "Create branch" : "Edit branch"}</h2><p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-xs">{mode === "create" ? "Add branch details and operating hours." : "Update branch details and operating hours."}</p></div><button type="button" onClick={onClose} className="grid size-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:size-8" aria-label="Close"><X size={16} /></button></div>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5"><div className="grid min-w-0 gap-3 sm:grid-cols-2 sm:gap-4"><BranchEditorField label="Branch name"><BranchEditorInput value={form.name} onChange={(event) => update("name", event.target.value)} /></BranchEditorField><BranchEditorField label="Branch code"><BranchEditorInput value={form.code} onChange={(event) => update("code", event.target.value)} /></BranchEditorField><BranchEditorField label="Email"><BranchEditorInput value={form.email} onChange={(event) => update("email", event.target.value)} /></BranchEditorField><BranchEditorField label="Phone number"><BranchEditorInput value={form.phone} onChange={(event) => update("phone", event.target.value)} /></BranchEditorField><BranchEditorField label="Address"><BranchEditorInput value={form.address} onChange={(event) => update("address", event.target.value)} /></BranchEditorField><BranchEditorField label="City"><BranchEditorInput value={form.city} onChange={(event) => update("city", event.target.value)} /></BranchEditorField><BranchEditorField label="State"><BranchEditorInput value={form.state} onChange={(event) => update("state", event.target.value)} /></BranchEditorField><BranchEditorField label="Postal code"><BranchEditorInput value={form.postalCode} onChange={(event) => update("postalCode", event.target.value)} /></BranchEditorField><BranchEditorField label="Opening time"><BranchEditorInput type="time" value={form.openingTime} onChange={(event) => update("openingTime", event.target.value)} /></BranchEditorField><BranchEditorField label="Closing time"><BranchEditorInput type="time" value={form.closingTime} onChange={(event) => update("closingTime", event.target.value)} /></BranchEditorField><BranchEditorField label="Manager"><BranchEditorInput value={form.manager} onChange={(event) => update("manager", event.target.value)} /></BranchEditorField><BranchEditorField label="Branch status"><BranchEditorSelect value={form.status} onChange={(event) => update("status", event.target.value)}><option>Active</option><option>Inactive</option></BranchEditorSelect></BranchEditorField></div></div>
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:text-sm">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 sm:text-sm">{mode === "create" ? "Create branch" : "Save changes"}</button></div>
+      </div>
+    </div>
+  );
+}
+
+function BranchEditorField({ label, children }) {
+  return <label className="grid gap-1.5 text-[11px] font-semibold text-slate-700 sm:text-xs">{label}{children}</label>;
+}
+
+function BranchEditorInput(props) {
+  return <input className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-normal outline-none sm:h-10 sm:text-sm" {...props} />;
+}
+
+function BranchEditorSelect({ children, ...props }) {
+  return <select className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-normal outline-none sm:h-10 sm:text-sm" {...props}>{children}</select>;
+}
+
 export function SettingsStaffPage() { return <BusinessSettingsShell title="Staff Management" subtitle="Create staff, assign their branch, and set permissions" requiredPermission="staff_management.view"><StaffManagement /></BusinessSettingsShell>; }
 
 export function SettingsItemGroupsPage() {
   const { groups, setGroups } = useSettingsData();
-  const [showGroupForm, setShowGroupForm] = useState(false);
-  const [groupName, setGroupName] = useState("");
+  const [groupEditor, setGroupEditor] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
+  const [query, setQuery] = useState("");
 
-  async function addGroup(branch) {
-    if (!groupName.trim()) return;
-    const group = await createItemGroup({ laundryId: branch.laundryId, name: groupName.trim() });
-    const nextGroups = [group, ...groups];
+  async function saveGroup(form, business) {
+    const name = form.name.trim();
+    if (!name) return;
+    const group = form.id
+      ? await updateItemGroup(form.id, { name })
+      : await createItemGroup({ laundryId: business.laundryId, name });
+    const nextGroups = form.id
+      ? groups.map((current) => current.id === group.id ? group : current)
+      : [group, ...groups];
     await saveItemGroups(nextGroups);
     setGroups(nextGroups);
-    setGroupName("");
-    setShowGroupForm(false);
+    setGroupEditor(null);
   }
 
-  async function toggleGroup(groupId) {
-    const nextGroups = groups.map((group) => group.id === groupId ? { ...group, status: group.status === "Active" ? "Inactive" : "Active" } : group);
-    const target = nextGroups.find((group) => group.id === groupId);
-    await updateItemGroup(groupId, { status: target.status });
+  async function toggleGroup(group) {
+    const status = group.status === "Active" ? "Inactive" : "Active";
+    const updated = await updateItemGroup(group.id, { status });
+    const nextGroups = groups.map((current) => current.id === updated.id ? updated : current);
+    await saveItemGroups(nextGroups);
+    setGroups(nextGroups);
+  }
+
+  async function removeGroup(group) {
+    await deleteItemGroup(group.id);
+    const nextGroups = groups.filter((current) => current.id !== group.id);
     await saveItemGroups(nextGroups);
     setGroups(nextGroups);
   }
@@ -2136,64 +2232,65 @@ export function SettingsItemGroupsPage() {
   return (
     <BusinessSettingsShell title="Item Groups" subtitle="Create and manage item groups used across the laundry business" requiredPermission="item_group.view">
       {(session, business) => {
-        const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
+        const businessGroups = groups.filter((group) => group.laundryId === business.laundryId && group.name.toLowerCase().includes(query.toLowerCase()));
         return (
-          <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-            <h2 className="text-xl font-black text-zinc-950">Item Groups</h2>
-            <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3">Group name</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {businessGroups.map((group) => (
-                    <tr key={group.id}>
-                      <td className="px-4 py-4 font-bold text-zinc-950">{group.name}</td>
-                      <td className="px-4 py-4"><Badge tone={group.status}>{group.status}</Badge></td>
-                      <td className="px-4 py-4">{can(session, "item_group.edit") ? <Button variant="secondary" onClick={() => toggleGroup(group.id)}>{group.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {can(session, "item_group.add") ? <Button className="mt-5" onClick={() => setShowGroupForm((value) => !value)}><Plus size={17} /> Create item group</Button> : null}
-            {showGroupForm ? (
-              <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
-                <TextInput value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Group name, e.g. Dry Cleaning" />
-                <Button onClick={() => addGroup(business)}><CheckCircle2 size={17} /> Save group</Button>
-                <Button variant="secondary" onClick={() => setShowGroupForm(false)}>Cancel</Button>
-              </div>
-            ) : null}
-          </section>
+          <div className="item-groups-workspace staff-workspace space-y-4 text-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Tag size={20} /></span><div className="min-w-0"><h2 className="text-base font-bold tracking-tight text-slate-900"><span className="sm:hidden">Groups</span><span className="hidden sm:inline">Item groups</span></h2><p className="mt-0.5 max-w-36 text-xs text-slate-500 sm:max-w-none">Organize your service items.</p></div></div>{can(session, "item_group.add") ? <button type="button" onClick={() => setGroupEditor({ name: "" })} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"><Plus size={16} />Create group</button> : null}</div>
+              <label className="mt-5 flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={18} className="shrink-0 text-slate-400" /><span className="sr-only">Search item groups</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search item groups" /></label>
+            </section>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">Item groups</h2><span className="text-xs tabular-nums text-slate-500">{businessGroups.length} {businessGroups.length === 1 ? "group" : "groups"}</span></div><DataTable className="[&_table]:text-sm [&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_th]:px-3 [&_th]:py-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-3 [&_tbody]:divide-slate-100" columns={[{ key: "name", label: "Group name", cellClassName: "font-semibold text-slate-900", render: (group) => group.name }, { key: "status", label: "Status", cellClassName: "whitespace-nowrap", render: (group) => <Badge tone={group.status}>{group.status}</Badge> }, { key: "actions", label: "Actions", headerClassName: "w-28", cellClassName: "w-28 whitespace-nowrap", render: (group) => <div className="inline-flex gap-1">{can(session, "item_group.edit") ? <><TableActionButton label={`Edit ${group.name}`} onClick={() => setGroupEditor({ id: group.id, name: group.name })}><Pencil size={15} /></TableActionButton>{group.status === "Active" ? <TableActionButton danger label={`Deactivate ${group.name}`} onClick={() => setConfirmation({ type: "status", group })}><ToggleRight size={17} /></TableActionButton> : <TableActionButton className="text-emerald-600 hover:bg-emerald-50" label={`Activate ${group.name}`} onClick={() => setConfirmation({ type: "status", group })}><ToggleLeft size={17} /></TableActionButton>}</> : null}{can(session, "item_group.delete") ? <TableActionButton danger label={`Delete ${group.name}`} onClick={() => setConfirmation({ type: "delete", group })}><Trash2 size={15} /></TableActionButton> : null}</div> }]} rows={businessGroups} rowKey={(group) => group.id} minWidth="480px" emptyMessage="No item groups found." /></section>
+            {groupEditor ? <ItemGroupEditor group={groupEditor} onClose={() => setGroupEditor(null)} onSave={(form) => saveGroup(form, business)} /> : null}
+            {confirmation ? <ConfirmModal title={confirmation.type === "delete" ? "Delete item group?" : `${confirmation.group.status === "Active" ? "Deactivate" : "Activate"} item group?`} body={confirmation.type === "delete" ? `${confirmation.group.name} will be removed from the available item groups.` : `${confirmation.group.name} will be ${confirmation.group.status === "Active" ? "inactive" : "active"} for item setup.`} confirmLabel={confirmation.type === "delete" ? "Delete group" : confirmation.group.status === "Active" ? "Deactivate" : "Activate"} onCancel={() => setConfirmation(null)} onConfirm={async () => { if (confirmation.type === "delete") await removeGroup(confirmation.group); else await toggleGroup(confirmation.group); setConfirmation(null); }} /> : null}
+          </div>
         );
       }}
     </BusinessSettingsShell>
   );
 }
 
+function ItemGroupEditor({ group, onClose, onSave }) {
+  const [name, setName] = useState(group.name || "");
+  const isEditing = Boolean(group.id);
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 sm:grid sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="item-group-editor-title">
+    <div className="mx-auto my-0 flex w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-200 bg-white sm:my-auto">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4"><div><h2 id="item-group-editor-title" className="text-sm font-bold text-slate-900 sm:text-base">{isEditing ? "Edit item group" : "Create item group"}</h2><p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-xs">{isEditing ? "Update the item group name." : "Add an item group for your services."}</p></div><button type="button" onClick={onClose} className="grid size-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:size-8" aria-label="Close"><X size={16} /></button></div>
+      <div className="p-4 sm:p-5"><BranchEditorField label="Group name"><BranchEditorInput value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Dry Cleaning" autoFocus /></BranchEditorField></div>
+      <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:text-sm">Cancel</button><button type="button" onClick={() => onSave({ ...group, name })} disabled={!name.trim()} className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm">{isEditing ? "Save changes" : "Create group"}</button></div>
+    </div>
+  </div>;
+}
+
 export function SettingsItemsPage() {
   const { groups, items, setItems } = useSettingsData();
-  const [showItemForm, setShowItemForm] = useState(false);
-  const [itemForm, setItemForm] = useState({ name: "", shortCode: "", groupId: "", pricingMethod: "Fixed price", price: "", unitType: "Quantity", status: "Active" });
+  const [itemEditor, setItemEditor] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
+  const [query, setQuery] = useState("");
 
-  async function addItem(branch) {
-    if (!itemForm.name || !itemForm.shortCode || !itemForm.groupId || !itemForm.price) return;
-    const item = await createServiceItem({ ...itemForm, laundryId: branch.laundryId, price: Number(itemForm.price || 0) });
-    const nextItems = [item, ...items];
+  async function saveItem(form, business) {
+    if (!form.name.trim() || !form.shortCode.trim() || !form.groupId || !form.price) return;
+    const payload = { name: form.name.trim(), shortCode: form.shortCode.trim().toUpperCase(), groupId: form.groupId, pricingMethod: form.pricingMethod, price: Number(form.price), unitType: form.unitType };
+    const item = form.id
+      ? await updateServiceItem(form.id, payload)
+      : await createServiceItem({ ...payload, laundryId: business.laundryId });
+    const nextItems = form.id
+      ? items.map((current) => current.id === item.id ? item : current)
+      : [item, ...items];
     await saveServiceItems(nextItems);
     setItems(nextItems);
-    setItemForm({ name: "", shortCode: "", groupId: "", pricingMethod: "Fixed price", price: "", unitType: "Quantity", status: "Active" });
-    setShowItemForm(false);
+    setItemEditor(null);
   }
 
-  async function toggleItem(itemId) {
-    const nextItems = items.map((item) => item.id === itemId ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item);
-    const target = nextItems.find((item) => item.id === itemId);
-    await updateServiceItem(itemId, { status: target.status });
+  async function toggleItem(item) {
+    const updated = await updateServiceItem(item.id, { status: item.status === "Active" ? "Inactive" : "Active" });
+    const nextItems = items.map((current) => current.id === updated.id ? updated : current);
+    await saveServiceItems(nextItems);
+    setItems(nextItems);
+  }
+
+  async function removeItem(item) {
+    await deleteServiceItem(item.id);
+    const nextItems = items.filter((current) => current.id !== item.id);
     await saveServiceItems(nextItems);
     setItems(nextItems);
   }
@@ -2202,102 +2299,63 @@ export function SettingsItemsPage() {
     <BusinessSettingsShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types" requiredPermission="item.view">
       {(session, business) => {
         const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
-        const businessItems = items.filter((item) => item.laundryId === business.laundryId);
+        const businessItems = items.filter((item) => item.laundryId === business.laundryId).filter((item) => [item.name, item.shortCode, item.unitType].join(" ").toLowerCase().includes(query.toLowerCase()));
         return (
-          <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-            <h2 className="text-xl font-black text-zinc-950">Items</h2>
-            <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
-              <table className="w-full min-w-[880px] text-left text-sm">
-                <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3">Item</th>
-                    <th className="px-4 py-3">Group</th>
-                    <th className="px-4 py-3">Pricing method</th>
-                    <th className="px-4 py-3">Unit type</th>
-                    <th className="px-4 py-3">Price</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {businessItems.map((item) => {
-                    const group = businessGroups.find((current) => current.id === item.groupId);
-                    return (
-                      <tr key={item.id}>
-                        <td className="px-4 py-4"><p className="font-bold text-zinc-950">{item.name}</p><p className="text-xs font-semibold text-zinc-500">{item.shortCode}</p></td>
-                        <td className="px-4 py-4 text-zinc-600">{group?.name || "No group"}</td>
-                        <td className="px-4 py-4 text-zinc-600">{item.pricingMethod}</td>
-                        <td className="px-4 py-4 text-zinc-600">{item.unitType}</td>
-                        <td className="px-4 py-4 font-bold text-zinc-950">{formatMoney(item.price)}</td>
-                        <td className="px-4 py-4"><Badge tone={item.status}>{item.status}</Badge></td>
-                        <td className="px-4 py-4">{can(session, "item.edit") ? <Button variant="secondary" onClick={() => toggleItem(item.id)}>{item.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {can(session, "item.add") ? <Button className="mt-5" onClick={() => setShowItemForm((value) => !value)}><Plus size={17} /> Create item</Button> : null}
-            {showItemForm ? (
-              <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Field label="Item name"><TextInput value={itemForm.name} onChange={(event) => setItemForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-                  <Field label="Short code"><TextInput value={itemForm.shortCode} onChange={(event) => setItemForm((current) => ({ ...current, shortCode: event.target.value.toUpperCase() }))} /></Field>
-                  <Field label="Group name">
-                    <SelectInput value={itemForm.groupId} onChange={(event) => setItemForm((current) => ({ ...current, groupId: event.target.value }))}>
-                      <option value="">Select group</option>
-                      {businessGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                    </SelectInput>
-                  </Field>
-                  <Field label="Pricing method">
-                    <SelectInput value={itemForm.pricingMethod} onChange={(event) => setItemForm((current) => ({ ...current, pricingMethod: event.target.value }))}>
-                      <option>Fixed price</option>
-                      <option>Per kilogram</option>
-                    </SelectInput>
-                  </Field>
-                  <Field label={itemForm.pricingMethod === "Per kilogram" ? "Price per kilogram" : "Fixed price"}><TextInput type="number" min="0" step="0.01" value={itemForm.price} onChange={(event) => setItemForm((current) => ({ ...current, price: event.target.value }))} /></Field>
-                  <Field label="Unit type">
-                    <SelectInput value={itemForm.unitType} onChange={(event) => setItemForm((current) => ({ ...current, unitType: event.target.value }))}>
-                      <option>Quantity</option>
-                      <option>Kilogram</option>
-                      <option>Meter</option>
-                      <option>Pair</option>
-                      <option>Set</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-                <div className="mt-5 flex gap-3">
-                  <Button onClick={() => addItem(business)}><Tag size={17} /> Save item</Button>
-                  <Button variant="secondary" onClick={() => setShowItemForm(false)}>Cancel</Button>
-                </div>
-              </div>
-            ) : null}
-          </section>
+          <div className="items-workspace staff-workspace space-y-4 text-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><PackageCheck size={20} /></span><div className="min-w-0"><h2 className="text-base font-bold tracking-tight text-slate-900">Items</h2><p className="mt-0.5 max-w-36 text-xs text-slate-500 sm:max-w-none">Manage service items and pricing.</p></div></div>{can(session, "item.add") ? <button type="button" onClick={() => setItemEditor({ name: "", shortCode: "", groupId: "", pricingMethod: "Fixed price", price: "", unitType: "Quantity" })} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"><Plus size={16} />Create item</button> : null}</div><label className="mt-5 flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={18} className="shrink-0 text-slate-400" /><span className="sr-only">Search items</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search items" /></label></section>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">Service items</h2><span className="text-xs tabular-nums text-slate-500">{businessItems.length} {businessItems.length === 1 ? "item" : "items"}</span></div><DataTable className="[&_table]:text-sm [&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_th]:px-3 [&_th]:py-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-3 [&_tbody]:divide-slate-100" columns={[{ key: "item", label: "Item", cellClassName: "min-w-44", render: (item) => <><p className="font-semibold text-slate-900">{item.name}</p><p className="mt-0.5 text-xs text-slate-500">{item.shortCode}</p></> }, { key: "group", label: "Group", cellClassName: "whitespace-nowrap text-slate-600", render: (item) => businessGroups.find((group) => group.id === item.groupId)?.name || "No group" }, { key: "pricing", label: "Pricing", cellClassName: "whitespace-nowrap text-slate-600", render: (item) => item.pricingMethod }, { key: "unit", label: "Unit", cellClassName: "whitespace-nowrap text-slate-600", render: (item) => item.unitType }, { key: "price", label: "Price", cellClassName: "whitespace-nowrap font-semibold tabular-nums text-slate-900", render: (item) => formatMoney(item.price) }, { key: "status", label: "Status", cellClassName: "whitespace-nowrap", render: (item) => <Badge tone={item.status}>{item.status}</Badge> }, { key: "actions", label: "Actions", headerClassName: "w-28", cellClassName: "w-28 whitespace-nowrap", render: (item) => <div className="inline-flex gap-1">{can(session, "item.edit") ? <><TableActionButton label={`Edit ${item.name}`} onClick={() => setItemEditor({ ...item, price: String(item.price) })}><Pencil size={15} /></TableActionButton>{item.status === "Active" ? <TableActionButton danger label={`Deactivate ${item.name}`} onClick={() => setConfirmation({ type: "status", item })}><ToggleRight size={17} /></TableActionButton> : <TableActionButton className="text-emerald-600 hover:bg-emerald-50" label={`Activate ${item.name}`} onClick={() => setConfirmation({ type: "status", item })}><ToggleLeft size={17} /></TableActionButton>}</> : null}{can(session, "item.delete") ? <TableActionButton danger label={`Delete ${item.name}`} onClick={() => setConfirmation({ type: "delete", item })}><Trash2 size={15} /></TableActionButton> : null}</div> }]} rows={businessItems} rowKey={(item) => item.id} minWidth="760px" emptyMessage="No items found." /></section>
+            {itemEditor ? <ItemEditor item={itemEditor} groups={businessGroups} onClose={() => setItemEditor(null)} onSave={(form) => saveItem(form, business)} /> : null}
+            {confirmation ? <ConfirmModal title={confirmation.type === "delete" ? "Delete item?" : `${confirmation.item.status === "Active" ? "Deactivate" : "Activate"} item?`} body={confirmation.type === "delete" ? `${confirmation.item.name} will be removed from the available service items.` : `${confirmation.item.name} will be ${confirmation.item.status === "Active" ? "inactive" : "active"} for orders.`} confirmLabel={confirmation.type === "delete" ? "Delete item" : confirmation.item.status === "Active" ? "Deactivate" : "Activate"} onCancel={() => setConfirmation(null)} onConfirm={async () => { if (confirmation.type === "delete") await removeItem(confirmation.item); else await toggleItem(confirmation.item); setConfirmation(null); }} /> : null}
+          </div>
         );
       }}
     </BusinessSettingsShell>
   );
 }
 
+function ItemEditor({ item, groups, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({ ...item }));
+  const isEditing = Boolean(item.id);
+  const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 sm:grid sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="item-editor-title">
+    <div className="mx-auto my-0 flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white sm:my-auto sm:max-h-[calc(100dvh-2rem)]">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4"><div><h2 id="item-editor-title" className="text-sm font-bold text-slate-900 sm:text-base">{isEditing ? "Edit item" : "Create item"}</h2><p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-xs">{isEditing ? "Update item details and pricing." : "Add an item for orders and pricing."}</p></div><button type="button" onClick={onClose} className="grid size-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:size-8" aria-label="Close"><X size={16} /></button></div>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5"><div className="grid min-w-0 gap-3 sm:grid-cols-2 sm:gap-4"><BranchEditorField label="Item name"><BranchEditorInput value={form.name} onChange={(event) => update("name", event.target.value)} autoFocus /></BranchEditorField><BranchEditorField label="Short code"><BranchEditorInput value={form.shortCode} onChange={(event) => update("shortCode", event.target.value.toUpperCase())} /></BranchEditorField><BranchEditorField label="Item group"><BranchEditorSelect value={form.groupId} onChange={(event) => update("groupId", event.target.value)}><option value="">Select group</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</BranchEditorSelect></BranchEditorField><BranchEditorField label="Pricing method"><BranchEditorSelect value={form.pricingMethod} onChange={(event) => update("pricingMethod", event.target.value)}><option>Fixed price</option><option>Per kilogram</option></BranchEditorSelect></BranchEditorField><BranchEditorField label={form.pricingMethod === "Per kilogram" ? "Price per kilogram" : "Fixed price"}><BranchEditorInput type="number" min="0" step="0.01" value={form.price} onChange={(event) => update("price", event.target.value)} /></BranchEditorField><BranchEditorField label="Unit type"><BranchEditorSelect value={form.unitType} onChange={(event) => update("unitType", event.target.value)}><option>Quantity</option><option>Kilogram</option><option>Meter</option><option>Pair</option><option>Set</option></BranchEditorSelect></BranchEditorField></div></div>
+      <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:text-sm">Cancel</button><button type="button" onClick={() => onSave(form)} className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 sm:text-sm">{isEditing ? "Save changes" : "Create item"}</button></div>
+    </div>
+  </div>;
+}
+
 export function SettingsTimeSlotsPage() {
   const { slots, setSlots } = useSettingsData();
-  const [showSlotForm, setShowSlotForm] = useState(false);
-  const [slotLabel, setSlotLabel] = useState("");
+  const [slotEditor, setSlotEditor] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
+  const [query, setQuery] = useState("");
 
-  async function addSlot(branch) {
-    if (!slotLabel.trim()) return;
-    const slot = await createTimeSlot({ laundryId: branch.laundryId, label: slotLabel.trim() });
-    const nextSlots = [slot, ...slots];
+  async function saveSlot(form, business) {
+    const label = form.label.trim();
+    if (!label) return;
+    const slot = form.id
+      ? await updateTimeSlot(form.id, { label })
+      : await createTimeSlot({ laundryId: business.laundryId, label });
+    const nextSlots = form.id
+      ? slots.map((current) => current.id === slot.id ? slot : current)
+      : [slot, ...slots];
     await saveTimeSlots(nextSlots);
     setSlots(nextSlots);
-    setSlotLabel("");
-    setShowSlotForm(false);
+    setSlotEditor(null);
   }
 
-  async function toggleSlot(slotId) {
-    const nextSlots = slots.map((slot) => slot.id === slotId ? { ...slot, status: slot.status === "Active" ? "Inactive" : "Active" } : slot);
-    const target = nextSlots.find((slot) => slot.id === slotId);
-    await updateTimeSlot(slotId, { status: target.status });
+  async function toggleSlot(slot) {
+    const updated = await updateTimeSlot(slot.id, { status: slot.status === "Active" ? "Inactive" : "Active" });
+    const nextSlots = slots.map((current) => current.id === updated.id ? updated : current);
+    await saveTimeSlots(nextSlots);
+    setSlots(nextSlots);
+  }
+
+  async function removeSlot(slot) {
+    await deleteTimeSlot(slot.id);
+    const nextSlots = slots.filter((current) => current.id !== slot.id);
     await saveTimeSlots(nextSlots);
     setSlots(nextSlots);
   }
@@ -2305,41 +2363,28 @@ export function SettingsTimeSlotsPage() {
   return (
     <BusinessSettingsShell title="Time Slots" subtitle="Create and manage delivery time slots used across all branches" requiredPermission="time_slot.view">
       {(session, business) => {
-        const businessSlots = slots.filter((slot) => slot.laundryId === business.laundryId);
+        const businessSlots = slots.filter((slot) => slot.laundryId === business.laundryId && slot.label.toLowerCase().includes(query.toLowerCase()));
         return (
-          <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-            <h2 className="text-xl font-black text-zinc-950">Delivery Time Slots</h2>
-            <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th className="px-4 py-3">Time slot</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200">
-                  {businessSlots.map((slot) => (
-                    <tr key={slot.id}>
-                      <td className="px-4 py-4 font-bold text-zinc-950">{slot.label}</td>
-                      <td className="px-4 py-4"><Badge tone={slot.status}>{slot.status}</Badge></td>
-                      <td className="px-4 py-4">{can(session, "time_slot.edit") ? <Button variant="secondary" onClick={() => toggleSlot(slot.id)}>{slot.status === "Active" ? "Deactivate" : "Activate"}</Button> : null}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {can(session, "time_slot.add") ? <Button className="mt-5" onClick={() => setShowSlotForm((value) => !value)}><Plus size={17} /> Create time slot</Button> : null}
-            {showSlotForm ? (
-              <div className="mt-4 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[1fr_auto_auto]">
-                <TextInput value={slotLabel} onChange={(event) => setSlotLabel(event.target.value)} placeholder="Example: 06:00 PM - 08:00 PM" />
-                <Button onClick={() => addSlot(business)}><Clock3 size={17} /> Save slot</Button>
-                <Button variant="secondary" onClick={() => setShowSlotForm(false)}>Cancel</Button>
-              </div>
-            ) : null}
-          </section>
+          <div className="time-slots-workspace staff-workspace space-y-4 text-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-white p-5"><div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center"><div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Clock3 size={20} /></span><div className="min-w-0"><h2 className="text-base font-bold tracking-tight text-slate-900"><span className="sm:hidden">Slots</span><span className="hidden sm:inline">Time slots</span></h2><p className="mt-0.5 max-w-36 text-xs text-slate-500 sm:max-w-none">Manage delivery time windows.</p></div></div>{can(session, "time_slot.add") ? <button type="button" onClick={() => setSlotEditor({ label: "" })} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"><Plus size={16} />Create slot</button> : null}</div><label className="mt-5 flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100"><Search size={18} className="shrink-0 text-slate-400" /><span className="sr-only">Search time slots</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search time slots" /></label></section>
+            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">Delivery time slots</h2><span className="text-xs tabular-nums text-slate-500">{businessSlots.length} {businessSlots.length === 1 ? "slot" : "slots"}</span></div><DataTable className="[&_table]:text-sm [&_thead]:bg-slate-50 [&_thead]:text-slate-500 [&_th]:px-3 [&_th]:py-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-3 [&_tbody]:divide-slate-100" columns={[{ key: "slot", label: "Time slot", cellClassName: "font-semibold text-slate-900", render: (slot) => slot.label }, { key: "status", label: "Status", cellClassName: "whitespace-nowrap", render: (slot) => <Badge tone={slot.status}>{slot.status}</Badge> }, { key: "actions", label: "Actions", headerClassName: "w-28", cellClassName: "w-28 whitespace-nowrap", render: (slot) => <div className="inline-flex gap-1">{can(session, "time_slot.edit") ? <><TableActionButton label={`Edit ${slot.label}`} onClick={() => setSlotEditor({ id: slot.id, label: slot.label })}><Pencil size={15} /></TableActionButton>{slot.status === "Active" ? <TableActionButton danger label={`Deactivate ${slot.label}`} onClick={() => setConfirmation({ type: "status", slot })}><ToggleRight size={17} /></TableActionButton> : <TableActionButton className="text-emerald-600 hover:bg-emerald-50" label={`Activate ${slot.label}`} onClick={() => setConfirmation({ type: "status", slot })}><ToggleLeft size={17} /></TableActionButton>}</> : null}{can(session, "time_slot.delete") ? <TableActionButton danger label={`Delete ${slot.label}`} onClick={() => setConfirmation({ type: "delete", slot })}><Trash2 size={15} /></TableActionButton> : null}</div> }]} rows={businessSlots} rowKey={(slot) => slot.id} minWidth="480px" emptyMessage="No time slots found." /></section>
+            {slotEditor ? <TimeSlotEditor slot={slotEditor} onClose={() => setSlotEditor(null)} onSave={(form) => saveSlot(form, business)} /> : null}
+            {confirmation ? <ConfirmModal title={confirmation.type === "delete" ? "Delete time slot?" : `${confirmation.slot.status === "Active" ? "Deactivate" : "Activate"} time slot?`} body={confirmation.type === "delete" ? `${confirmation.slot.label} will be removed from the available delivery time slots.` : `${confirmation.slot.label} will be ${confirmation.slot.status === "Active" ? "inactive" : "active"} for orders.`} confirmLabel={confirmation.type === "delete" ? "Delete slot" : confirmation.slot.status === "Active" ? "Deactivate" : "Activate"} onCancel={() => setConfirmation(null)} onConfirm={async () => { if (confirmation.type === "delete") await removeSlot(confirmation.slot); else await toggleSlot(confirmation.slot); setConfirmation(null); }} /> : null}
+          </div>
         );
       }}
     </BusinessSettingsShell>
   );
+}
+
+function TimeSlotEditor({ slot, onClose, onSave }) {
+  const [label, setLabel] = useState(slot.label || "");
+  const isEditing = Boolean(slot.id);
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 sm:grid sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="time-slot-editor-title">
+    <div className="mx-auto my-0 flex w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-200 bg-white sm:my-auto">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4"><div><h2 id="time-slot-editor-title" className="text-sm font-bold text-slate-900 sm:text-base">{isEditing ? "Edit time slot" : "Create time slot"}</h2><p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-xs">{isEditing ? "Update the delivery time window." : "Add a delivery time window for orders."}</p></div><button type="button" onClick={onClose} className="grid size-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:size-8" aria-label="Close"><X size={16} /></button></div>
+      <div className="p-4 sm:p-5"><BranchEditorField label="Time slot"><BranchEditorInput value={label} onChange={(event) => setLabel(event.target.value)} placeholder="e.g. 06:00 PM - 08:00 PM" autoFocus /></BranchEditorField></div>
+      <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:text-sm">Cancel</button><button type="button" onClick={() => onSave({ ...slot, label })} disabled={!label.trim()} className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm">{isEditing ? "Save changes" : "Create slot"}</button></div>
+    </div>
+  </div>;
 }
