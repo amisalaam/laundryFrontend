@@ -69,12 +69,12 @@
 .order-action-modal .modal-primary {
   min-height: 2.5rem;
   border-radius: 0.5rem;
-  background: var(--color-slate-900) !important;
+  background: var(--theme-dark-surface) !important;
   color: white;
   font-size: 0.8125rem;
 }
 
-.order-action-modal .modal-primary:hover { background: var(--color-slate-800) !important; }
+.order-action-modal .modal-primary:hover { background: var(--theme-dark-surface-hover) !important; }
 
 .order-action-modal .modal-secondary {
   min-height: 2.5rem;

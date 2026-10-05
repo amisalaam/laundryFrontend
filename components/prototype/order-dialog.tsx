@@ -62,11 +62,11 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
         {delivery && <>
           <div className="grid gap-3 sm:grid-cols-2 sm:gap-5">
             <label className="text-xs font-semibold sm:text-sm">Delivery Date<input autoFocus required type="date" value={form.deliveryDate} onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })} className={input} /></label>
-            <label className="text-xs font-semibold sm:text-sm">Time Slot<select required disabled={slotsLoading} aria-busy={slotsLoading} value={form.deliveryTimeSlot} onChange={(e) => setForm({ ...form, deliveryTimeSlot: e.target.value })} className={input}><option value="">{slotsLoading ? "Loading time slots…" : "Choose time slot"}</option>{slotLabels.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
+            <label className="text-xs font-semibold sm:text-sm">Time Slot<select required disabled={slotsLoading} aria-busy={slotsLoading} value={form.deliveryTimeSlot} onChange={(e) => setForm({ ...form, deliveryTimeSlot: e.target.value })} className={input}><option value="">{slotsLoading ? "Loading slots" : "Choose slot"}</option>{slotLabels.map((slot) => <option key={slot}>{slot}</option>)}</select></label>
           </div>
-          {slotsLoading && <p role="status" className="text-sm text-zinc-500">Loading time slots…</p>}
+          {slotsLoading && <p role="status" className="text-sm text-zinc-500">Loading slots</p>}
           {slotError && <div role="alert" className="text-sm text-amber-700">Unable to load time slots: {slotError} <button type="button" disabled={slotsLoading} className="underline" onClick={() => { setSlotsLoading(true); setSlotAttempt((value) => value + 1); }}>Retry</button></div>}
-          {!slotsLoading && !slotError && !slots.some((slot) => slot.status === "Active") && <p role="status" className="text-sm text-amber-700">No active delivery slots are configured. Add or activate a slot in Settings → Time Slots. The order’s current slot can still be kept.</p>}
+          {!slotsLoading && !slotError && !slots.some((slot) => slot.status === "Active") && <p role="status" className="text-sm text-amber-700">No active slots. Add one in Settings → Time Slots.</p>}
           <label className="block text-xs font-semibold sm:text-sm">Customer Comment<textarea maxLength={5000} rows={3} className={`${input} !h-20 py-2 sm:!h-auto`} value={form.customerComment} onChange={(e) => setForm({ ...form, customerComment: e.target.value })} /></label>
           <label className="block text-xs font-semibold sm:text-sm">Other Comment<textarea maxLength={5000} rows={3} className={`${input} !h-20 py-2 sm:!h-auto`} value={form.otherComment} onChange={(e) => setForm({ ...form, otherComment: e.target.value })} /></label>
         </>}
@@ -76,11 +76,11 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
         {action === "edit" && <div className="space-y-4"><h3 className="font-semibold">Order items</h3>{form.items.map((item, index) => <div key={item.rowId} className="rounded-lg border border-zinc-200 p-3">
           <p className="mb-2 font-semibold">{item.itemName}</p><div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{(["quantity", "unitPrice", "itemCount"] as const).map((key) => <label key={key} className="text-sm">{{ quantity: "Quantity", unitPrice: "Unit price", itemCount: "Label count" }[key]}<input required type="number" min={key === "unitPrice" ? 0 : key === "quantity" ? 0.01 : 1} step={key === "itemCount" ? 1 : 0.01} value={item[key]} className={input} onChange={(e) => setForm({ ...form, items: form.items.map((row, i) => i === index ? { ...row, [key]: Number(e.target.value) } : row) })} /></label>)}</div>
         </div>)}</div>}
-        {action === "discount" && <><p className="text-sm text-zinc-600">Update the total cash discount. It cannot reduce the order total below the amount already paid.</p><label className="block text-sm font-semibold">Cash Discount<input autoFocus required type="number" min="0" max={Math.max(0, order.subTotal - order.paidAmount)} step="0.01" className={input} value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} /></label></>}
+        {action === "discount" && <><p className="text-sm text-zinc-600">The discount cannot exceed the unpaid amount.</p><label className="block text-sm font-semibold">Cash Discount<input autoFocus required type="number" min="0" max={Math.max(0, order.subTotal - order.paidAmount)} step="0.01" className={input} value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} /></label></>}
         {action === "cancel" && <p>Cancel this order and move it to the Cancelled tab?</p>}
-        {action === "delete" && <p>Remove this pending order from the order list? Its stored record and payment history will be retained.</p>}
+        {action === "delete" && <p>Remove this pending order? Its record and payments stay saved.</p>}
         {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3"><button type="submit" className={`${button} modal-primary`}>{busy ? "Saving…" : action === "delete" ? "Delete Order" : action === "cancel" ? "Cancel Order" : "Save"}</button><button type="button" onClick={onClose} className={`${button} modal-secondary`}>{action === "cancel" || action === "delete" ? "Keep Order" : "Cancel"}</button></div>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3"><button type="submit" className={`${button} modal-primary`}>{busy ? "Saving" : action === "delete" ? "Delete Order" : action === "cancel" ? "Cancel Order" : "Save"}</button><button type="button" onClick={onClose} className={`${button} modal-secondary`}>{action === "cancel" || action === "delete" ? "Keep Order" : "Cancel"}</button></div>
       </fieldset>
     </form>
   </dialog>;

@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #09090b;
+  --theme-dark-surface: #334155;
+  --theme-dark-surface-hover: #475569;
+  --theme-active-indicator: #475569;
 }
 
 @theme inline {
@@ -41,22 +44,52 @@ select {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Keep selection states clean: no persistent focus ring or colored focus outline. */
+button:focus,
+button:focus-visible,
+a:focus,
+a:focus-visible,
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible,
+textarea:focus,
+textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
 ::selection {
   background: #e2e8f0;
   color: #0f172a;
+}
+
+/* One shared dark surface for primary actions, active navigation, and dark cards. */
+.bg-slate-700,
+.bg-slate-800,
+.bg-slate-900,
+.bg-zinc-950 {
+  background-color: var(--theme-dark-surface) !important;
+}
+
+.hover\:bg-slate-800:hover,
+.hover\:bg-zinc-800:hover {
+  background-color: var(--theme-dark-surface-hover) !important;
 }
 
 /* Keep controls neutral across every workspace. */
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: #a1a1aa !important;
-  --tw-ring-color: #e4e4e7 !important;
+  border-color: #e4e4e7 !important;
+  --tw-ring-color: transparent !important;
 }
 
 .focus-within\:border-cyan-500:focus-within {
-  border-color: #a1a1aa !important;
-  --tw-ring-color: #e4e4e7 !important;
+  border-color: #e4e4e7 !important;
+  --tw-ring-color: transparent !important;
 }
 
 /* Shared surfaces use neutral gray borders, without a blue cast. */
@@ -66,6 +99,17 @@ textarea:focus {
 .ring-slate-100, .ring-slate-200, .ring-cyan-500 { --tw-ring-color: #e4e4e7 !important; }
 
 @media (max-width: 768px) {
+  .login-form > label > span {
+    margin-bottom: 0.375rem;
+    font-size: 0.6875rem;
+    line-height: 0.875rem;
+  }
+
+  .login-form input,
+  .login-form button[type="submit"] {
+    font-size: 0.75rem;
+  }
+
   .app-main:has(.order-workspace),
   .app-main:has(.customer-workspace),
   .app-main:has(.delivery-workspace),

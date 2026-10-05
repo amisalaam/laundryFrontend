@@ -302,8 +302,8 @@ function CustomerCombobox({ customers, selectedCustomer, onSelect, error }) {
               )}
             >
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-zinc-950">{customer.name}</span>
-                <span className="block truncate text-xs text-zinc-500">{customer.phone}{customer.email ? ` · ${customer.email}` : ""}</span>
+                <span className="block break-words text-sm font-semibold text-zinc-950">{customer.name}</span>
+                <span className="block break-words text-xs text-zinc-500">{customer.phone}{customer.email ? ` · ${customer.email}` : ""}</span>
               </span>
               {selectedCustomer?.id === customer.id ? <CheckCircle2 size={17} className="shrink-0 text-emerald-600" /> : null}
             </button>
@@ -388,14 +388,27 @@ function LoginScreen({ type }) {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#cffafe,transparent_34%),linear-gradient(135deg,#f8fafc,#eef2ff)] px-4 py-8">
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[420px] items-center">
-        <section className="rounded-lg border border-white/70 bg-white/90 p-6 shadow-xl shadow-cyan-950/10 backdrop-blur">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-zinc-950">{isSuperAdmin ? "Super Admin Login" : "Owner & Staff Login"}</h2>
-            <p className="mt-1 text-sm text-zinc-500">Sign in with your LaundryOS account.</p>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
+    <main className="min-h-[100dvh] bg-slate-100 px-3 py-4 sm:px-6 sm:py-10">
+      <div className="mx-auto grid min-h-[calc(100dvh-2rem)] max-w-[26rem] items-center sm:min-h-[calc(100dvh-5rem)]">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white sm:rounded-2xl">
+          <header className="bg-slate-900 px-4 py-4 text-white sm:px-7 sm:py-7">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-white/20 bg-white/10 sm:size-11 sm:rounded-xl">
+                <Building2 className="size-[18px] sm:size-[21px]" strokeWidth={2.2} />
+              </span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-200 sm:text-[11px]">LaundryOS</p>
+                <p className="mt-0.5 text-xs font-medium text-slate-200 sm:text-sm">Operations portal</p>
+              </div>
+            </div>
+            <h2 className="mt-4 text-base font-bold tracking-tight sm:mt-6 sm:text-2xl">{isSuperAdmin ? "Welcome back, Admin" : "Welcome back"}</h2>
+            <p className="mt-1 text-[11px] leading-4 text-slate-200 sm:mt-1.5 sm:text-sm sm:leading-5">{isSuperAdmin ? "Sign in to manage your LaundryOS platform." : "Sign in to manage your daily laundry operations."}</p>
+          </header>
+          <form onSubmit={handleSubmit} className="login-form space-y-3 px-4 py-4 sm:space-y-5 sm:px-7 sm:py-7">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 sm:text-lg">Sign in to your account</h3>
+              <p className="mt-0.5 text-[11px] text-slate-500 sm:mt-1 sm:text-sm">Enter your details to continue.</p>
+            </div>
             <Field label="Email">
               <TextInput value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
             </Field>
@@ -407,15 +420,17 @@ function LoginScreen({ type }) {
                 </button>
               </div>
             </Field>
-            {error ? <p className="rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</p> : null}
+            {error ? <p className="rounded-lg bg-rose-50 px-3 py-2.5 text-xs font-medium text-rose-700 sm:text-sm">{error}</p> : null}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
               Sign in
             </Button>
           </form>
-          <Link href={isSuperAdmin ? "/login" : "/super-admin/login"} className="mt-5 inline-flex text-sm font-semibold text-cyan-700 hover:text-cyan-900">
-            {isSuperAdmin ? "Go to owner and staff login" : "Go to super admin login"}
-          </Link>
+          <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 sm:px-7 sm:py-5">
+            <Link href={isSuperAdmin ? "/login" : "/super-admin/login"} className="inline-flex text-[11px] font-semibold text-slate-600 hover:text-slate-900 sm:text-sm">
+              {isSuperAdmin ? "Go to owner and staff login" : "Go to super admin login"}
+            </Link>
+          </div>
         </section>
       </div>
     </main>
@@ -495,8 +510,8 @@ function ProfileDropdown({ session, branches = [] }) {
       <button type="button" onClick={() => setIsOpen((value) => !value)} aria-expanded={isOpen} aria-haspopup="menu" className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-left sm:h-12 sm:gap-3 sm:px-3">
         <span className="grid size-8 place-items-center rounded-lg bg-slate-900 text-xs font-bold text-white sm:size-9 sm:text-sm">{session?.name?.slice(0, 1)}</span>
         <span className="hidden min-w-0 max-w-40 sm:block">
-          <span className="block truncate text-xs font-bold text-zinc-950 sm:text-sm">{session?.name}</span>
-          <span className="block truncate text-[11px] text-zinc-500 sm:text-xs">{session?.role}</span>
+          <span className="block break-words text-xs font-bold text-zinc-950 sm:text-sm">{session?.name}</span>
+          <span className="block break-words text-[11px] text-zinc-500 sm:text-xs">{session?.role}</span>
         </span>
         <ChevronDown className="size-4 text-zinc-500 sm:size-[17px]" />
       </button>
@@ -532,7 +547,7 @@ function TopBar({ session, title, subtitle, branches, onMenu, hideMenu = false }
       <div className="flex h-full items-center justify-between gap-3 px-3 sm:gap-4 sm:px-4 lg:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           {!hideMenu ? <button type="button" className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu className="size-5 sm:size-[21px]" /></button> : null}
-          <div className="min-w-0"><h1 className="topbar-title truncate text-base font-black text-slate-950 sm:text-lg">{title}</h1>{subtitle ? <p className="topbar-subtitle truncate text-[11px] text-slate-500 sm:text-sm">{subtitle}</p> : null}</div>
+          <div className="min-w-0"><h1 className="topbar-title whitespace-nowrap text-base font-black text-slate-950 sm:text-lg">{title}</h1>{subtitle ? <p className="topbar-subtitle whitespace-nowrap text-[11px] text-slate-500 sm:text-sm">{subtitle}</p> : null}</div>
         </div>
         <div className="hidden h-12 min-w-0 max-w-lg flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 md:flex"><Search size={17} className="shrink-0 text-slate-400" /><input aria-label="Search orders, branches, customers" className="min-w-0 w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" placeholder="Search orders, branches, customers" /></div>
         <div className="flex shrink-0 items-center gap-2"><ProfileDropdown session={session} branches={branches} /></div>
@@ -545,8 +560,8 @@ function Sidebar({ links, isOpen, onClose }) {
   const pathname = usePathname();
   const content = <div className="app-sidebar flex h-full flex-col overflow-hidden border-r border-slate-200 bg-white text-slate-900">
     <div className={classNames(navigationHeaderHeight, "flex shrink-0 items-center justify-between border-b border-slate-200 px-5")}><Link href="/" onClick={onClose} className="group flex items-center gap-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400"><span className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-slate-50 text-slate-900 transition-transform group-hover:scale-105"><Sparkles size={21} strokeWidth={2.5} /></span><span><span className="block text-[17px] font-extrabold tracking-tight text-slate-950">LaundryOS</span><span className="block text-xs font-medium text-slate-500">Multi-branch suite</span></span></Link><button className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 lg:hidden" onClick={onClose} aria-label="Close navigation"><X size={20} /></button></div>
-    <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-6" aria-label="Main navigation">{links.map((link) => { if (link.type === "heading") return <p key={link.label} className="px-3 pb-2 pt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 first:pt-2">{link.label}</p>; const isActive = pathname === link.href; return <Link key={link.href} href={link.href} onClick={onClose} className={classNames("group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400", link.isChild ? "ml-4 py-2.5 text-xs" : "", isActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950")}><span style={isActive ? undefined : { backgroundColor: "#f1f5f9" }} className={classNames("grid size-8 shrink-0 place-items-center rounded-lg", isActive ? "text-white" : "text-slate-500 group-hover:text-slate-900")}><link.icon size={17} strokeWidth={isActive ? 2.4 : 2} /></span><span className="min-w-0 truncate">{link.label}</span>{isActive ? <span className="ml-auto size-1.5 rounded-full bg-white" /> : null}</Link>; })}</nav>
-    <div className="shrink-0 px-5 pb-4 pt-2"><div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">LaundryOS workspace</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Operations and branch tools in one place.</p></div></div>
+    <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-6" aria-label="Main navigation">{links.map((link) => { if (link.type === "heading") return <p key={link.label} className="px-3 pb-2 pt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 first:pt-2">{link.label}</p>; const isActive = pathname === link.href; return <Link key={link.href} href={link.href} onClick={onClose} className={classNames("group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-400", link.isChild ? "ml-4 py-2.5 text-xs" : "", isActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950")}><span style={isActive ? undefined : { backgroundColor: "#f1f5f9" }} className={classNames("grid size-8 shrink-0 place-items-center rounded-lg", isActive ? "text-white" : "text-slate-500 group-hover:text-slate-900")}><link.icon size={17} strokeWidth={isActive ? 2.4 : 2} /></span><span className="min-w-0 break-words">{link.label}</span>{isActive ? <span className="ml-auto size-1.5 rounded-full bg-white" /> : null}</Link>; })}</nav>
+    <div className="shrink-0 px-5 pb-4 pt-2"><div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">LaundryOS</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Branch tools</p></div></div>
   </div>;
   return <><aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">{content}</aside>{isOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" onClick={onClose} aria-label="Close navigation overlay" /><aside className="relative h-full w-[min(20rem,88vw)]">{content}</aside></div> : null}</>;
 }
@@ -663,7 +678,7 @@ export function SuperAdminDashboardPage() {
   }, []);
 
   return (
-    <AppShell type="super-admin" title="Super Admin Dashboard" subtitle="Platform-wide performance and account management">
+    <AppShell type="super-admin" title="Super Admin Dashboard" subtitle="Platform overview">
       {() => {
         const activeStaff = branches.reduce((sum, branch) => sum + branch.staffCount, 0);
         const activeSubscriptions = laundries.filter((laundry) => laundry.subscription === "Active").length;
@@ -800,7 +815,7 @@ export function LaundriesPage() {
   }
 
   return (
-    <AppShell type="super-admin" title="Laundry Businesses" subtitle="Search, filter, sort, edit, activate, and delete laundry accounts">
+    <AppShell type="super-admin" title="Laundry Businesses" subtitle="Manage laundry accounts">
       {() => (
         <div className="space-y-5">
           {loadError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{loadError}</p> : null}
@@ -1036,7 +1051,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
 
 export function CreateLaundryPage() {
   return (
-    <AppShell type="super-admin" title="Create Laundry Business" subtitle="Create the laundry account and owner from one validated form">
+    <AppShell type="super-admin" title="Create Laundry Business" subtitle="Add account and owner">
       {() => <LaundryForm />}
     </AppShell>
   );
@@ -1067,7 +1082,7 @@ export function LaundryDetailsPage() {
   }, [laundryId]);
 
   return (
-    <AppShell type="super-admin" title={laundry?.name || "Laundry Details"} subtitle="View branches and edit laundry or owner information">
+    <AppShell type="super-admin" title={laundry?.name || "Laundry Details"} subtitle="View branches and account details">
       {() => {
         if (!laundry) return <EmptyState title="Laundry not found" body="This laundry is not available to the current account." action={<Link href="/super-admin/laundries"><Button>Back to laundries</Button></Link>} />;
         if (isEditing) return <LaundryForm initialValue={{ ...emptyLaundryForm, ...laundry, password: "********", confirmPassword: "********" }} mode="edit" />;
@@ -1124,16 +1139,16 @@ function BranchCard({ branch, recentBranchId, onOpen }) {
     <div className="branch-card-heading flex items-start justify-between gap-3 p-4 sm:p-5">
       <div className="flex min-w-0 items-center gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700 sm:size-11"><Store size={19} /></span>
-        <div className="min-w-0"><h2 className="branch-card-title truncate text-sm font-bold tracking-tight text-slate-900 sm:text-base">{branch.name}</h2><p className="branch-card-code mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 sm:text-[11px]">{branch.code}</p></div>
+        <div className="min-w-0"><h2 className="branch-card-title break-words text-sm font-bold tracking-tight text-slate-900 sm:text-base">{branch.name}</h2><p className="branch-card-code mt-0.5 break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 sm:text-[11px]">{branch.code}</p></div>
       </div>
       <Badge tone={branch.status}>{branch.status}</Badge>
     </div>
     <div className="branch-card-location border-y border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
       <p className="branch-card-meta-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Location</p>
-      <p className="branch-card-meta-value mt-1 truncate text-xs font-medium text-slate-700 sm:text-sm">{[branch.city, branch.state, branch.postalCode].filter(Boolean).join(", ") || "Location not set"}</p>
+      <p className="branch-card-meta-value mt-1 break-words text-xs font-medium text-slate-700 sm:text-sm">{[branch.city, branch.state, branch.postalCode].filter(Boolean).join(", ") || "Location not set"}</p>
     </div>
     <div className="grid grid-cols-2 divide-x divide-slate-100">
-      <div className="branch-card-meta min-w-0 px-4 py-3 sm:px-5"><p className="branch-card-meta-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Manager</p><p className="branch-card-meta-value mt-1 truncate text-xs font-medium text-slate-700 sm:text-sm">{branch.manager || "Not assigned"}</p></div>
+      <div className="branch-card-meta min-w-0 px-4 py-3 sm:px-5"><p className="branch-card-meta-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Manager</p><p className="branch-card-meta-value mt-1 break-words text-xs font-medium text-slate-700 sm:text-sm">{branch.manager || "Not assigned"}</p></div>
       <div className="branch-card-meta min-w-0 px-4 py-3 sm:px-5"><p className="branch-card-meta-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Team</p><p className="branch-card-meta-value mt-1 text-xs font-medium text-slate-700 sm:text-sm">{branch.staffCount || 0} staff</p></div>
     </div>
     {onOpen ? <div className="branch-card-action flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-600 sm:px-5 sm:text-sm"><span>{recentBranchId === branch.id ? "Recently opened" : "Open workspace"}</span><span className="text-base leading-none text-slate-400">→</span></div> : null}
@@ -1177,7 +1192,7 @@ export function BranchSelectionPage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Business home</p>
               <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Select a branch</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-300">Choose a branch to open daily operations, or use business settings to create your first one.</p>
+              <p className="mt-2 max-w-2xl text-sm text-slate-300">Choose a branch for daily operations, or create one in Business settings.</p>
             </div>
             <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-600 bg-slate-700 text-slate-100"><Store size={21} /></span>
           </div>
@@ -1199,7 +1214,7 @@ export function BranchSelectionPage() {
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Settings size={19} /></span>
                   <div>
                     <h2 className="text-base font-bold tracking-tight text-slate-900">Business settings</h2>
-                    <p className="mt-1 text-sm text-slate-500">Manage branches, service items, item groups, and delivery time slots in one place.</p>
+                    <p className="mt-1 text-sm text-slate-500">Manage branches, items, groups, and delivery slots.</p>
                   </div>
                 </div>
                 <Link href={settingsHref}><Button className="focus:ring-0"><Settings size={16} /> Manage settings</Button></Link>
@@ -1264,7 +1279,7 @@ export function CreateBranchPage() {
   }
 
   return (
-    <AppShell type="business" title="Create Branch" subtitle="Add branch operating details and open the dashboard immediately">
+    <AppShell type="business" title="Create Branch" subtitle="Add branch details">
       {(session) => {
         if (!can(session, "branch.add")) return <EmptyState title="Branch creation is not available" body="Your role can work inside assigned branches but cannot create new ones." />;
         return (
@@ -1298,7 +1313,7 @@ export function CreateBranchPage() {
 export function BranchDashboardPage() {
   const wasCreated = useSearchParams().get("created") === "1";
   return (
-    <BranchModuleShell title="Branch Dashboard" subtitle="Live operating snapshot for the selected branch">
+    <BranchModuleShell title="Branch Dashboard" subtitle="Branch overview">
       {(session, branch) => <BranchDashboardContent branch={branch} wasCreated={wasCreated} />}
     </BranchModuleShell>
   );
@@ -1455,7 +1470,7 @@ function BranchModuleShell({ title, subtitle, requiredPermission, children }) {
   return (
     <AppShell type="business" title={title} subtitle={subtitle}>
       {(session) => {
-        if (requiredPermission && !can(session, requiredPermission)) return <EmptyState title="Access denied" body="You do not have permission to open this page." />;
+        if (requiredPermission && !can(session, requiredPermission)) return <EmptyState title="Access denied" body="You cannot open this page." />;
         return <BranchScope session={session} branchId={branchId}>{children}</BranchScope>;
       }}
     </AppShell>
@@ -1465,7 +1480,7 @@ function BranchModuleShell({ title, subtitle, requiredPermission, children }) {
 function BusinessSettingsShell({ title, subtitle, requiredPermission, children }) {
   return (
     <AppShell type="business" title={title} subtitle={subtitle}>
-      {(session) => requiredPermission && !can(session, requiredPermission) ? <EmptyState title="Access denied" body="You do not have permission to open this page." /> : typeof children === "function" ? children(session, { laundryId: session.laundryId }) : children}
+      {(session) => requiredPermission && !can(session, requiredPermission) ? <EmptyState title="Access denied" body="You cannot open this page." /> : typeof children === "function" ? children(session, { laundryId: session.laundryId }) : children}
     </AppShell>
   );
 }
@@ -1548,13 +1563,13 @@ function AddReceiptModal({ order, onCancel, onSave }) {
 
 
 export function OrdersPage() {
-  return <BranchModuleShell title="Orders" subtitle="Work-order table with statuses, receipts, labels, and delivery tracking" requiredPermission="orders.view">
+  return <BranchModuleShell title="Orders" subtitle="Manage orders and payments" requiredPermission="orders.view">
     {(session, branch) => <OrdersWorkspace key={branch.id} branchId={branch.id} permissions={session.permissionMatrix?.orders} deliveryPermissions={session.permissionMatrix?.delivery} />}
   </BranchModuleShell>;
 }
 
 export function DeliveryPage() {
-  return <BranchModuleShell title="Delivery" subtitle="Manage pending and completed customer deliveries" requiredPermission="delivery.view">
+  return <BranchModuleShell title="Delivery" subtitle="Manage deliveries" requiredPermission="delivery.view">
     {(session, branch) => <DeliveryWorkspace key={branch.id} branchId={branch.id} />}
   </BranchModuleShell>;
 }
@@ -1654,7 +1669,7 @@ export function CreateOrderPage() {
   }
 
   return (
-    <BranchModuleShell title="Create Order" subtitle="Select customer, choose configured items, calculate totals, and prepare labels" requiredPermission="orders.add">
+    <BranchModuleShell title="Create Order" subtitle="Add items and payment details" requiredPermission="orders.add">
       {(session, branch) => {
         const branchCustomers = customers.filter((customer) => customer.branchId === branch.id);
         const activeItems = serviceItems.filter((item) => item.laundryId === branch.laundryId && item.status === "Active");
@@ -1696,7 +1711,7 @@ export function CreateOrderPage() {
                       {activeSlots.map((slot) => <option key={slot.id}>{slot.label}</option>)}
                     </SelectInput>
                     {timeSlotsError ? <p role="alert" className="mt-2 text-sm text-rose-700">{timeSlotsError}</p> : null}
-                    {!timeSlotsError && !activeSlots.length ? <p role="status" className="mt-2 text-sm text-amber-700">No active delivery slots are configured for this laundry.</p> : null}
+                    {!timeSlotsError && !activeSlots.length ? <p role="status" className="mt-2 text-sm text-amber-700">No active delivery slots yet.</p> : null}
                   </Field>
                 </div>
               </section>
@@ -1783,7 +1798,7 @@ export function OrderDetailsPage() {
   }, [orderId]);
 
   return (
-    <BranchModuleShell title={order?.orderNumber || "Order Details"} subtitle="Work order details, items, receipts, and printable labels" requiredPermission="orders.view">
+    <BranchModuleShell title={order?.orderNumber || "Order Details"} subtitle="Order details and payments" requiredPermission="orders.view">
       {(session, branch) => {
         if (!order) return <EmptyState title="Order not found" body="This work order is not available to the current account." action={<Link href={`/branch/${branch.id}/orders`}><Button>Back to orders</Button></Link>} />;
         return (
@@ -1859,7 +1874,7 @@ export function CustomersPage() {
   }, []);
 
   return (
-    <BranchModuleShell title="Customers" subtitle="Customer directory used by Create Order auto-fill" requiredPermission="customers.view">
+    <BranchModuleShell title="Customers" subtitle="Manage branch customers" requiredPermission="customers.view">
       {(session, branch) => {
         const branchCustomers = customers
           .filter((customer) => customer.branchId === branch.id)
@@ -1904,7 +1919,7 @@ export function CustomersPage() {
                 { key: "customer", label: "Customer", render: (customer) => <p className="font-semibold text-slate-900">{customer.name}</p> },
                 { key: "phone", label: "Phone", cellClassName: "whitespace-nowrap text-slate-600", render: (customer) => customer.phone },
                 { key: "email", label: "Email", cellClassName: "text-slate-600", render: (customer) => customer.email || "—" },
-                { key: "address", label: "Address", cellClassName: "max-w-64 truncate text-slate-600", render: (customer) => customer.address || "—" },
+                { key: "address", label: "Address", cellClassName: "max-w-64 whitespace-normal break-words text-slate-600", render: (customer) => customer.address || "—" },
                 { key: "actions", label: "Actions", headerClassName: "w-20", cellClassName: "w-20 whitespace-nowrap", render: (customer) => <div className="inline-flex gap-1">{can(session, "customers.edit") ? <TableActionButton label={`Edit ${customer.name}`} onClick={() => { setError(""); setEditingCustomer(customer); }}><Pencil size={15} /></TableActionButton> : null}{can(session, "customers.delete") ? <TableActionButton label={`Delete ${customer.name}`} onClick={() => removeCustomer(customer)}><Trash2 size={15} /></TableActionButton> : null}</div> },
               ]} />
              
@@ -1933,7 +1948,7 @@ function CustomerEditDialog({ customer, onClose, onSave }) {
   return <dialog ref={dialogRef} onCancel={onClose} className="fixed inset-0 m-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/40 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]"><form onSubmit={submit} className="flex max-h-[calc(100dvh-1.5rem)] min-h-0 flex-col sm:max-h-[calc(100dvh-2rem)]">
     <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 sm:px-4 sm:py-3"><div><h2 className="text-sm font-bold sm:text-base">{isNew ? "Create customer" : "Edit customer"}</h2><p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">{isNew ? "Add customer contact details." : "Update contact details."}</p></div><button type="button" onClick={onClose} aria-label="Close customer editor" className="grid size-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={16} /></button></div>
     <fieldset disabled={isSaving} className="grid min-h-0 flex-1 gap-2.5 overflow-y-auto overscroll-contain p-3 [&>label>span:first-child]:mb-1 [&>label>span:first-child]:text-[11px] sm:grid-cols-2 sm:gap-3 sm:p-4 sm:[&>label>span:first-child]:text-xs"><Field label="Name"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" autoFocus value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field><Field label="Phone"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></Field><Field label="Email"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></Field><Field label="Address"><TextInput className="!h-9 text-xs sm:!h-10 sm:text-sm" value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} /></Field>{error ? <p role="alert" className="sm:col-span-2 text-xs text-rose-700 sm:text-sm">{error}</p> : null}</fieldset>
-    <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5 sm:flex-row sm:justify-end sm:gap-2 sm:px-4 sm:py-3"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:text-sm">Cancel</button><button className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 sm:h-10 sm:text-sm">{isSaving ? "Saving…" : isNew ? "Create customer" : "Save changes"}</button></div>
+    <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5 sm:flex-row sm:justify-end sm:gap-2 sm:px-4 sm:py-3"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:text-sm">Cancel</button><button className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 sm:h-10 sm:text-sm">{isSaving ? "Saving" : isNew ? "Create customer" : "Save changes"}</button></div>
   </form></dialog>;
 }
 
@@ -1959,7 +1974,7 @@ export function CreateCustomerPage() {
   }
 
   return (
-    <BranchModuleShell title="Create Customer" subtitle="Add a customer for this branch" requiredPermission="customers.add">
+    <BranchModuleShell title="Create Customer" subtitle="Add a branch customer" requiredPermission="customers.add">
       {(session, branch) => (
         <section className="create-customer-workspace rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
@@ -2078,7 +2093,7 @@ export function SettingsBranchManagementPage({ initialCreate = false }) {
   }
 
   return (
-    <BusinessSettingsShell title="Branch Management" subtitle="Manage every branch in this laundry business" requiredPermission="branch.view">
+    <BusinessSettingsShell title="Branch Management" subtitle="Manage branches" requiredPermission="branch.view">
       {(session, business) => {
         const businessBranches = branches
           .filter((branch) => branch.laundryId === business.laundryId)
@@ -2191,7 +2206,7 @@ function BranchEditorSelect({ children, ...props }) {
   return <select className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-normal outline-none sm:h-10 sm:text-sm" {...props}>{children}</select>;
 }
 
-export function SettingsStaffPage() { return <BusinessSettingsShell title="Staff Management" subtitle="Create staff, assign their branch, and set permissions" requiredPermission="staff_management.view"><StaffManagement /></BusinessSettingsShell>; }
+export function SettingsStaffPage() { return <BusinessSettingsShell title="Staff Management" subtitle="Manage staff permissions" requiredPermission="staff_management.view"><StaffManagement /></BusinessSettingsShell>; }
 
 export function SettingsItemGroupsPage() {
   const { groups, setGroups } = useSettingsData();
@@ -2232,7 +2247,7 @@ export function SettingsItemGroupsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Item Groups" subtitle="Create and manage item groups used across the laundry business" requiredPermission="item_group.view">
+    <BusinessSettingsShell title="Item Groups" subtitle="Manage item groups" requiredPermission="item_group.view">
       {(session, business) => {
         const businessGroups = groups.filter((group) => group.laundryId === business.laundryId && group.name.toLowerCase().includes(query.toLowerCase()));
         return (
@@ -2301,7 +2316,7 @@ export function SettingsItemsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Items" subtitle="Create and manage order items, prices, methods, and unit types" requiredPermission="item.view">
+    <BusinessSettingsShell title="Items" subtitle="Manage items and pricing" requiredPermission="item.view">
       {(session, business) => {
         const businessGroups = groups.filter((group) => group.laundryId === business.laundryId);
         const businessItems = items.filter((item) => item.laundryId === business.laundryId).filter((item) => [item.name, item.shortCode, item.unitType].join(" ").toLowerCase().includes(query.toLowerCase()));
@@ -2369,7 +2384,7 @@ export function SettingsTimeSlotsPage() {
   }
 
   return (
-    <BusinessSettingsShell title="Time Slots" subtitle="Create and manage delivery time slots used across all branches" requiredPermission="time_slot.view">
+    <BusinessSettingsShell title="Time Slots" subtitle="Manage delivery slots" requiredPermission="time_slot.view">
       {(session, business) => {
         const businessSlots = slots.filter((slot) => slot.laundryId === business.laundryId && slot.label.toLowerCase().includes(query.toLowerCase()));
         return (
