@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Printer, X } from "lucide-react";
+import { Printer } from "lucide-react";
+import { ModalDialog, ModalFooter, ModalHeader } from "@/components/common/modal";
 import "./order-modal-theme.css";
 
 type Item = {
@@ -63,20 +64,14 @@ export default function BillPrintDialog({ order, onClose }: { order: Order; onCl
           #laundry-bill-print-root .bill-output .amount { text-align: right; }
         }
       `}</style>
-      <dialog ref={dialog} onCancel={onClose} aria-labelledby="print-bill-title" className="order-action-modal fixed inset-0 m-auto max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-auto bg-white p-0!important text-slate-950">
-        <div className="modal-header flex items-center justify-between border-b">
-          <div>
-            <h2 id="print-bill-title" className="modal-title">Print bill</h2>
-            <p className="modal-subtitle mt-1">{order.orderNumber}</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close print bill" className="modal-close"><X size={18} /></button>
-        </div>
+      <ModalDialog ref={dialog} onCancel={onClose} aria-label="Print bill" className="h-[calc(100dvh-1.5rem)] max-h-[90dvh] !overflow-y-auto overscroll-contain !p-0 sm:h-auto">
+        <ModalHeader title="Print bill" subtitle={order.orderNumber} onClose={onClose} closeLabel="Close print bill" />
         <Bill order={order} balance={balance} className="p-6" />
-        <div className="modal-footer flex justify-end gap-3 border-t">
+        <ModalFooter className="items-center gap-3 sm:flex-row sm:justify-end">
           <button type="button" onClick={printBill} className="modal-primary inline-flex items-center gap-2 px-4 font-semibold"><Printer size={16} /> Print</button>
           <button type="button" onClick={onClose} className="modal-secondary px-4 font-semibold">Cancel</button>
-        </div>
-      </dialog>
+        </ModalFooter>
+      </ModalDialog>
       <Bill order={order} balance={balance} className="bill-output" />
     </div>,
     document.body,

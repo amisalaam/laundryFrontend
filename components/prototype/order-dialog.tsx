@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
+import { ModalDialog } from "@/components/common/modal";
+import { ConfirmationModal } from "@/components/common/modal";
 import { errorMessage, listSlots, type Order, type Slot } from "@/services/order-service";
 import "./order-modal-theme.css";
 
@@ -18,6 +20,7 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
   const [slotError, setSlotError] = useState("");
   const [slotsLoading, setSlotsLoading] = useState(action === "process" || action === "edit");
   const [slotAttempt, setSlotAttempt] = useState(0);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [form, setForm] = useState({ deliveryDate: order.deliveryDate, deliveryTimeSlot: order.deliveryTimeSlot,
     customerComment: order.customerComment || "", otherComment: order.otherComment || "", status: "",
     discount: String(order.discount), items: order.items.map((item) => ({ ...item })) });
@@ -34,10 +37,8 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
     }).finally(() => { if (active) setSlotsLoading(false); });
     return () => { active = false; };
   }, [delivery, order.laundryId, slotAttempt]);
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function save() {
     if (busy) return;
-    if (action === "process" && form.status === "Cancelled" && !window.confirm(`Cancel ${order.orderNumber}?`)) return;
     setBusy(true); setError("");
     try {
       const values: Record<string, unknown> = {};
@@ -50,9 +51,14 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
       await onSave(values);
     } catch (issue) { setError(errorMessage(issue)); setBusy(false); }
   }
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (action === "process" && form.status === "Cancelled") { setConfirmingCancel(true); return; }
+    void save();
+  }
   const slotLabels = Array.from(new Set([order.deliveryTimeSlot, ...slots.filter((slot) => slot.status === "Active").map((slot) => slot.label)].filter(Boolean)));
-  return <dialog ref={dialog} aria-labelledby="order-dialog-title" onCancel={(event) => { if (busy) event.preventDefault(); else onClose(); }}
-    className="order-action-modal fixed inset-0 m-auto h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-3xl overflow-hidden bg-white p-0 sm:h-auto sm:max-h-[90dvh] sm:w-[calc(100%-2rem)]">
+  return <><ModalDialog ref={dialog} aria-labelledby="order-dialog-title" onCancel={(event) => { if (busy) event.preventDefault(); else onClose(); }}
+    className="h-[calc(100dvh-1.5rem)] sm:h-auto sm:max-h-[90dvh]">
     <form onSubmit={submit} className="flex h-full min-h-0 flex-col sm:max-h-[90dvh]">
       <div className="modal-header flex items-center justify-between border-b">
         <div><h2 id="order-dialog-title" className="modal-title">{title}</h2><p className="modal-subtitle mt-1">{order.orderNumber}</p></div>
@@ -80,8 +86,8 @@ export default function OrderDialog({ order, action, onClose, onSave }: {
         {action === "cancel" && <p>Cancel this order and move it to the Cancelled tab?</p>}
         {action === "delete" && <p>Remove this pending order? Its record and payments stay saved.</p>}
         {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3"><button type="submit" className={`${button} modal-primary`}>{busy ? "Saving" : action === "delete" ? "Delete Order" : action === "cancel" ? "Cancel Order" : "Save"}</button><button type="button" onClick={onClose} className={`${button} modal-secondary`}>{action === "cancel" || action === "delete" ? "Keep Order" : "Cancel"}</button></div>
+        <div className="modal-footer flex items-center justify-end gap-3 border-t"><button type="submit" className={`${button} modal-primary`}>{busy ? "Saving" : action === "delete" ? "Delete Order" : action === "cancel" ? "Cancel Order" : "Save"}</button><button type="button" onClick={onClose} className={`${button} modal-secondary`}>{action === "cancel" || action === "delete" ? "Keep Order" : "Cancel"}</button></div>
       </fieldset>
     </form>
-  </dialog>;
+  </ModalDialog>{confirmingCancel ? <ConfirmationModal title="Cancel order?" body={`${order.orderNumber} will move to Cancelled.`} confirmLabel="Cancel order" danger onCancel={() => setConfirmingCancel(false)} onConfirm={() => { setConfirmingCancel(false); void save(); }} /> : null}</>;
 }

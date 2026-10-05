@@ -194,6 +194,35 @@
   line-height: 1rem;
 }
 
+.create-order-workspace .order-customer-details .info-card p:first-child,
+.order-details-workspace .info-card p:first-child {
+  font-size: 0.6875rem;
+  line-height: 0.9375rem;
+}
+
+.create-order-workspace .order-customer-details .info-card p:last-child,
+.order-details-workspace .info-card p:last-child {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .create-order-workspace .order-customer-details {
+    gap: 0.5rem;
+    padding: 0.625rem;
+  }
+
+  .order-details-workspace {
+    gap: 0.75rem;
+  }
+
+  .create-order-workspace .order-customer-details .info-card,
+  .order-details-workspace .info-card {
+    padding: 0.625rem;
+  }
+}
+
 @container (min-width: 520px) {
   .create-order-workspace .item-row {
     grid-template-columns: minmax(0, 1.9fr) repeat(3, minmax(0, 1fr)) minmax(0, 1.1fr) 2rem;

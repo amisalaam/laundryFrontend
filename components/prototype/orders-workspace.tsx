@@ -9,6 +9,8 @@ import BillPrintDialog from "./bill-print-dialog";
 import LabelPrintDialog from "./label-print-dialog";
 import ReceiptDialog from "./receipt-dialog";
 import DataTable from "@/components/common/data-table";
+import { ConfirmationModal } from "@/components/common/modal";
+import { showSuccessToast } from "@/lib/success-toast";
 
 const tabs = ["Pending", "Under Processing", "Cancelled"] as const;
 type Tab = typeof tabs[number];
@@ -60,7 +62,7 @@ function Actions({ order, onAction, onBill, onLabels, onReceipt, onMoveToDeliver
         items[next]?.focus();
       }
     }}>
-      {pending && <>{permissions?.edit !== false && <><button role="menuitem" className={item} onClick={() => select("cancel")}>Cancel Order</button><button role="menuitem" className={item} onClick={() => select("edit")}>Edit Order</button></>}{permissions?.delete !== false && <button role="menuitem" className={item} onClick={() => select("delete")}>Delete Order</button>}</>}
+      {pending && <>{permissions?.edit !== false && <><button role="menuitem" className={item} onClick={() => select("cancel")}>Cancel Order</button><Link role="menuitem" className={item} href={`/branch/${order.branchId}/orders/create?edit=${order.id}`} onClick={dismiss}>Edit Order</Link></>}{permissions?.delete !== false && <button role="menuitem" className={item} onClick={() => select("delete")}>Delete Order</button>}</>}
       <Link role="menuitem" className={item} href={`/branch/${order.branchId}/orders/${order.id}`} onClick={dismiss}>View Order</Link>
       {!cancelled && permissions?.edit !== false && <button role="menuitem" className={item} onClick={() => select("discount")}>Cash Discount</button>}
     </div>, document.body)}
@@ -79,6 +81,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
   const [billTarget, setBillTarget] = useState<Order | null>(null);
   const [labelTarget, setLabelTarget] = useState<Order | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<Order | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
   useEffect(() => {
     let active = true;
     listOrders(branchId).then((rows) => { if (active) { setOrders(rows); setError(""); } }).catch((issue) => { if (active) setError(errorMessage(issue)); }).finally(() => { if (active) setLoading(false); });
@@ -87,16 +90,19 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
   const visible = orders.filter((order) => matches(order, tab) && [order.orderNumber, order.customerName, order.customerPhone].join(" ").toLowerCase().includes(query.toLowerCase()));
   async function save(values: Record<string, unknown>) {
     if (!target) return;
-    if (target.action === "delete") {
-      await deleteOrder(target.order.id);
-      setOrders((rows) => rows.filter((order) => order.id !== target.order.id));
-      setNotice(`${target.order.orderNumber} removed from the list.`);
-    } else {
-      const saved = await updateOrder(target.order.id, values);
-      setOrders((rows) => rows.map((order) => order.id === saved.id ? saved : order));
-      setNotice(`${saved.orderNumber} ${saved.status === "Processing" && target.action === "process" ? "moved to Under Processing" : saved.status === "Cancelled" ? "moved to Cancelled" : "updated"}.`);
-    }
+    const saved = await updateOrder(target.order.id, values);
+    setOrders((rows) => rows.map((order) => order.id === saved.id ? saved : order));
+    setNotice(`${saved.orderNumber} ${saved.status === "Processing" && target.action === "process" ? "moved to Under Processing" : saved.status === "Cancelled" ? "moved to Cancelled" : "updated"}.`);
+    if (target.action === "edit") showSuccessToast("Order changes saved.");
     setTarget(null);
+  }
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    await deleteOrder(deleteTarget.id);
+    setOrders((rows) => rows.filter((order) => order.id !== deleteTarget.id));
+    setNotice(`${deleteTarget.orderNumber} removed from the list.`);
+    showSuccessToast("Order deleted.");
+    setDeleteTarget(null);
   }
   async function saveReceipt(values: { amount: number; method: string; note: string }) {
     if (!receiptTarget) return;
@@ -112,7 +118,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
       setNotice(`${saved.orderNumber} moved to Delivery → Pending.`);
     } catch (issue) { setError(errorMessage(issue)); }
   }
-  function actions(order: Order) { return <Actions order={order} onAction={(action) => setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => moveToDelivery(order)} permissions={permissions} deliveryPermissions={deliveryPermissions} />; }
+  function actions(order: Order) { return <Actions order={order} onAction={(action) => action === "delete" ? setDeleteTarget(order) : setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => moveToDelivery(order)} permissions={permissions} deliveryPermissions={deliveryPermissions} />; }
   return <div className="order-workspace space-y-4 text-slate-900">
     <section className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -147,6 +153,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
     {billTarget && <BillPrintDialog order={billTarget} onClose={() => setBillTarget(null)} />}
     {labelTarget && <LabelPrintDialog order={labelTarget} onClose={() => setLabelTarget(null)} />}
     {receiptTarget && <ReceiptDialog order={receiptTarget} onClose={() => setReceiptTarget(null)} onSave={saveReceipt} />}
+    {deleteTarget && <ConfirmationModal title="Delete order?" body={`${deleteTarget.orderNumber} will be removed from the order list.`} confirmLabel="Delete order" danger onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />}
   </div>;
 }
 

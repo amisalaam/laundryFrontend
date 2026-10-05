@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Printer, X } from "lucide-react";
+import { Printer } from "lucide-react";
+import { ModalDialog, ModalFooter, ModalHeader } from "@/components/common/modal";
 import "./order-modal-theme.css";
 
 type Item = { rowId: string; itemName: string; shortCode?: string; quantity: number; itemCount?: number; unitType?: string };
@@ -45,11 +46,8 @@ export default function LabelPrintDialog({ order, onClose }: { order: Order; onC
           #laundry-label-print-root .service-code { display: inline-block; border: 1px solid black; padding: 1mm; }
         }
       `}</style>
-      <dialog ref={dialog} onCancel={onClose} aria-labelledby="print-label-title" className="order-action-modal fixed inset-0 m-auto max-h-[90vh] w-[calc(100%-2rem)] max-w-3xl overflow-auto bg-white p-0 text-slate-950">
-        <div className="modal-header flex items-center justify-between border-b">
-          <div><h2 id="print-label-title" className="modal-title">Print label</h2><p className="modal-subtitle mt-1">{order.orderNumber} · {order.customerName}</p></div>
-          <button type="button" onClick={onClose} aria-label="Close print labels" className="modal-close"><X size={18} /></button>
-        </div>
+      <ModalDialog ref={dialog} onCancel={onClose} aria-label="Print label" className="max-h-[90vh] overflow-auto">
+        <ModalHeader title="Print label" subtitle={`${order.orderNumber} · ${order.customerName}`} onClose={onClose} closeLabel="Close print labels" />
         <div className="p-5">
           <div className="overflow-x-auto">
             <table className="modal-table w-full min-w-[440px] text-left text-sm">
@@ -64,12 +62,12 @@ export default function LabelPrintDialog({ order, onClose }: { order: Order; onC
           <p className="mt-4 text-sm text-zinc-500">Set copies to 0 to skip an item. Copies default to the garment label count.</p>
           {!canPrint && <p role="alert" className="mt-2 text-sm text-rose-700">Choose whole numbers from 0 to 500 per item, with 1–1,000 labels in total.</p>}
         </div>
-        <div className="modal-footer flex items-center justify-end gap-3 border-t">
+        <ModalFooter className="items-center gap-3 sm:flex-row sm:justify-end">
           <span className="mr-auto text-sm text-zinc-600">{valid ? total : 0} labels</span>
           <button type="button" onClick={printLabels} disabled={!canPrint} className="modal-primary inline-flex items-center gap-2 px-4 font-semibold disabled:opacity-40"><Printer size={16} /> Print</button>
           <button type="button" onClick={onClose} className="modal-secondary px-4 font-semibold">Cancel</button>
-        </div>
-      </dialog>
+        </ModalFooter>
+      </ModalDialog>
       <div className="label-output" aria-hidden="true">{canPrint && order.items.flatMap((item, index) => Array.from({ length: counts[index] }, (_, copy) => (
         <article key={`${item.rowId}-${copy}`} className="garment-label">
           <p>{order.customerName}</p><p>#{order.orderNumber}</p>{date && <p>{date}</p>}
