@@ -76,13 +76,13 @@ textarea:focus {
   }
 
   .app-topbar .topbar-title {
-    font-size: 1.125rem;
-    line-height: 1.375rem;
+    font-size: 0.875rem;
+    line-height: 1.125rem;
   }
 
   .app-topbar .topbar-subtitle {
-    font-size: 0.75rem;
-    line-height: 1rem;
+    font-size: 0.625rem;
+    line-height: 0.875rem;
   }
 
   .dashboard-workspace .text-3xl {
@@ -507,6 +507,38 @@ textarea:focus {
     line-height: 0.875rem;
   }
 
+  .branch-selection-workspace .branch-selection-card {
+    font-size: inherit;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-heading {
+    gap: 0.625rem;
+    padding: 0.875rem;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-title {
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-code,
+  .branch-selection-workspace .branch-selection-card .branch-card-meta-label {
+    font-size: 0.5625rem;
+    line-height: 0.75rem;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-location,
+  .branch-selection-workspace .branch-selection-card .branch-card-meta,
+  .branch-selection-workspace .branch-selection-card .branch-card-action {
+    padding: 0.75rem 0.875rem;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-meta-value,
+  .branch-selection-workspace .branch-selection-card .branch-card-action {
+    font-size: 0.6875rem;
+    line-height: 0.9375rem;
+  }
+
   .branch-management-workspace .branch-management-filters {
     margin-top: 0.75rem;
     gap: 0.5rem;
@@ -545,5 +577,34 @@ textarea:focus {
     padding: 0.24rem 0.4rem;
     font-size: 0.6175rem;
     line-height: 0.9375rem;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 768px) {
+  .app-topbar .topbar-title {
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+
+  .app-topbar .topbar-subtitle {
+    font-size: 0.6875rem;
+    line-height: 0.875rem;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-title {
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-code,
+  .branch-selection-workspace .branch-selection-card .branch-card-meta-label {
+    font-size: 0.625rem;
+    line-height: 0.875rem;
+  }
+
+  .branch-selection-workspace .branch-selection-card .branch-card-meta-value,
+  .branch-selection-workspace .branch-selection-card .branch-card-action {
+    font-size: 0.75rem;
+    line-height: 1rem;
   }
 }

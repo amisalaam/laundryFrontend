@@ -7,6 +7,7 @@ import DataTable, { TableActionButton } from "@/components/common/data-table";
 import { api } from "@/lib/api";
 import { getBranches } from "@/lib/storage";
 import { can, getSession } from "@/lib/auth";
+import { showSuccessToast } from "@/lib/success-toast";
 
 const menus = [["orders", "Orders"], ["customers", "Customers"], ["delivery", "Delivery"], ["branch", "Branch"], ["item", "Item"], ["item_group", "Item Group"], ["time_slot", "Time Slot"], ["staff_management", "Staff Management"]] as const;
 const actions = ["view", "add", "edit", "delete"] as const;
@@ -36,13 +37,13 @@ export default function StaffManagement() {
     try {
       const body = { name: form.name, email: form.email, phone: form.phone, branchId: form.branchId, permissions: form.permissions, ...(!form.id ? { password: form.password } : {}) };
       await (form.id ? api.patch(`/staff/${form.id}/`, body) : api.post("/staff/", body));
-      await load(); setForm(null);
+      await load(); setForm(null); showSuccessToast(form.id ? "Staff changes saved." : "Staff member created.");
     } catch (issue: any) { setError(issue.message || "Could not save staff"); }
   }
 
   async function remove(member: any) {
     if (!window.confirm(`Deactivate ${member.name}?`)) return;
-    try { await api.del(`/staff/${member.id}/`); setStaff((rows) => rows.filter((row) => row.id !== member.id)); }
+    try { await api.del(`/staff/${member.id}/`); setStaff((rows) => rows.filter((row) => row.id !== member.id)); showSuccessToast("Staff member deleted."); }
     catch (issue: any) { setError(issue.message || "Could not remove staff"); }
   }
 

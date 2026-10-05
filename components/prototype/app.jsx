@@ -9,6 +9,7 @@ import OrdersWorkspace from "./orders-workspace";
 import DeliveryWorkspace from "./delivery-workspace";
 import StaffManagement from "./staff-management";
 import DataTable, { TableActionButton } from "@/components/common/data-table";
+import { showSuccessToast, SuccessToastRegion } from "@/lib/success-toast";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -491,30 +492,30 @@ function ProfileDropdown({ session, branches = [] }) {
 
   return (
     <div className="relative">
-      <button onClick={() => setIsOpen((value) => !value)} className="flex h-12 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left">
-        <span className="grid size-9 place-items-center rounded-lg bg-slate-900 text-sm font-bold text-white">{session?.name?.slice(0, 1)}</span>
+      <button type="button" onClick={() => setIsOpen((value) => !value)} aria-expanded={isOpen} aria-haspopup="menu" className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 text-left sm:h-12 sm:gap-3 sm:px-3">
+        <span className="grid size-8 place-items-center rounded-lg bg-slate-900 text-xs font-bold text-white sm:size-9 sm:text-sm">{session?.name?.slice(0, 1)}</span>
         <span className="hidden min-w-0 max-w-40 sm:block">
-          <span className="block truncate text-sm font-bold text-zinc-950">{session?.name}</span>
-          <span className="block truncate text-xs text-zinc-500">{session?.role}</span>
+          <span className="block truncate text-xs font-bold text-zinc-950 sm:text-sm">{session?.name}</span>
+          <span className="block truncate text-[11px] text-zinc-500 sm:text-xs">{session?.role}</span>
         </span>
-        <ChevronDown size={16} className="text-zinc-500" />
+        <ChevronDown className="size-4 text-zinc-500 sm:size-[17px]" />
       </button>
       {isOpen ? (
-        <div className="absolute right-0 z-30 mt-2 w-72 rounded-lg border border-zinc-200 bg-white p-3 shadow-xl">
-          <div className="rounded-lg bg-zinc-50 p-3">
-            <p className="font-bold text-zinc-950">{session?.name}</p>
-            <p className="text-sm text-zinc-500">{session?.role}</p>
-            <p className="mt-2 text-xs font-semibold uppercase text-zinc-400">Current branch</p>
-            <p className="text-sm text-zinc-700">{currentBranch?.name || "Platform wide"}</p>
+        <div role="menu" className="absolute right-0 z-30 mt-2 w-[min(18rem,calc(100vw-1.5rem))] rounded-xl border border-slate-200 bg-white p-2 shadow-xl sm:mt-3 sm:w-72 sm:p-3">
+          <div className="rounded-lg bg-slate-50 p-3 sm:p-3.5">
+            <p className="text-xs font-bold text-slate-900 sm:text-sm">{session?.name}</p>
+            <p className="mt-0.5 text-[11px] text-slate-500 sm:text-xs">{session?.role}</p>
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 sm:mt-3 sm:text-[11px]">Current branch</p>
+            <p className="mt-0.5 text-xs text-slate-700 sm:text-sm">{currentBranch?.name || "Platform wide"}</p>
           </div>
           {branches.length ? (
-            <Link href="/home" className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
-              <Store size={16} />
+            <Link href="/home" role="menuitem" className="mt-2 flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:mt-3 sm:min-h-10 sm:text-sm">
+              <Store className="size-4" />
               Branch selection
             </Link>
           ) : null}
-          <button onClick={handleLogout} className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">
-            <LogOut size={16} />
+          <button type="button" role="menuitem" onClick={handleLogout} className="mt-2 flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 sm:mt-3 sm:min-h-10 sm:text-sm">
+            <LogOut className="size-4" />
             Logout
           </button>
         </div>
@@ -523,15 +524,15 @@ function ProfileDropdown({ session, branches = [] }) {
   );
 }
 
-const navigationHeaderHeight = "h-20";
+const navigationHeaderHeight = "h-16 sm:h-20";
 
 function TopBar({ session, title, subtitle, branches, onMenu, hideMenu = false }) {
   return (
     <header className={classNames(navigationHeaderHeight, "app-topbar sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur")}>
-      <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          {!hideMenu ? <button className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu size={21} /></button> : null}
-          <div className="min-w-0"><h1 className="topbar-title truncate text-lg font-black text-slate-950">{title}</h1>{subtitle ? <p className="topbar-subtitle truncate text-sm text-slate-500">{subtitle}</p> : null}</div>
+      <div className="flex h-full items-center justify-between gap-3 px-3 sm:gap-4 sm:px-4 lg:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          {!hideMenu ? <button type="button" className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu className="size-5 sm:size-[21px]" /></button> : null}
+          <div className="min-w-0"><h1 className="topbar-title truncate text-base font-black text-slate-950 sm:text-lg">{title}</h1>{subtitle ? <p className="topbar-subtitle truncate text-[11px] text-slate-500 sm:text-sm">{subtitle}</p> : null}</div>
         </div>
         <div className="hidden h-12 min-w-0 max-w-lg flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 md:flex"><Search size={17} className="shrink-0 text-slate-400" /><input aria-label="Search orders, branches, customers" className="min-w-0 w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" placeholder="Search orders, branches, customers" /></div>
         <div className="flex shrink-0 items-center gap-2"><ProfileDropdown session={session} branches={branches} /></div>
@@ -609,6 +610,7 @@ function AppShell({ type, title, subtitle, children }) {
         <TopBar session={session} title={title} subtitle={subtitle} branches={branches} onMenu={() => setIsMenuOpen(true)} />
         <main className="app-main px-4 py-6 lg:px-6">{children(session, setSessionState)}</main>
       </div>
+      <SuccessToastRegion />
     </div>
   );
 }
@@ -794,6 +796,7 @@ export function LaundriesPage() {
     await saveLaundries(nextLaundries);
     setLaundries(nextLaundries);
     setDeleteTarget(null);
+    showSuccessToast("Laundry business deleted.");
   }
 
   return (
@@ -971,6 +974,7 @@ function LaundryForm({ initialValue = emptyLaundryForm, mode = "create" }) {
       setForm((current) => ({ ...current, id: data.laundry.id }));
       setIsSaving(false);
       setSuccess(isDraft ? "Laundry saved as inactive." : "Laundry business and owner saved.");
+      if (mode === "edit") showSuccessToast("Laundry changes saved.");
       if (mode === "create" && !isDraft) router.push(`/super-admin/laundries/${data.laundry.id}`);
     } catch (error) {
       setErrors(error.fields || {});
@@ -1116,38 +1120,27 @@ function Info({ label, value }) {
 }
 
 function BranchCard({ branch, recentBranchId, onOpen }) {
-  return (
-    <div
-      role={onOpen ? "button" : undefined}
-      tabIndex={onOpen ? 0 : undefined}
-      onClick={onOpen ? () => onOpen(branch.id) : undefined}
-      onKeyDown={onOpen ? (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen(branch.id);
-        }
-      } : undefined}
-      className={classNames(
-        "block w-full rounded-xl border border-slate-200 bg-white p-5 text-left",
-        onOpen ? "cursor-pointer transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300" : "",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-bold tracking-tight text-slate-900">{branch.name}</h2>
-          <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{branch.code}</p>
-        </div>
-        <Badge tone={branch.status}>{branch.status}</Badge>
+  const content = <>
+    <div className="branch-card-heading flex items-start justify-between gap-3 p-4 sm:p-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700 sm:size-11"><Store size={19} /></span>
+        <div className="min-w-0"><h2 className="branch-card-title truncate text-sm font-bold tracking-tight text-slate-900 sm:text-base">{branch.name}</h2><p className="branch-card-code mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 sm:text-[11px]">{branch.code}</p></div>
       </div>
-      <div className="mt-4 space-y-2 text-xs leading-5 text-slate-600">
-        <p>{branch.city}, {branch.state} {branch.postalCode}</p>
-        <p>{branch.phone}</p>
-        <p>Manager: <span className="font-semibold text-slate-800">{branch.manager}</span></p>
-        <p>{branch.staffCount} staff</p>
-      </div>
-      {recentBranchId === branch.id ? <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-600">Recently opened</p> : null}
+      <Badge tone={branch.status}>{branch.status}</Badge>
     </div>
-  );
+    <div className="branch-card-location border-y border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
+      <p className="branch-card-meta-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Location</p>
+      <p className="branch-card-meta-value mt-1 truncate text-xs font-medium text-slate-700 sm:text-sm">{[branch.city, branch.state, branch.postalCode].filter(Boolean).join(", ") || "Location not set"}</p>
+    </div>
+    <div className="grid grid-cols-2 divide-x divide-slate-100">
+      <div className="branch-card-meta min-w-0 px-4 py-3 sm:px-5"><p className="branch-card-meta-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Manager</p><p className="branch-card-meta-value mt-1 truncate text-xs font-medium text-slate-700 sm:text-sm">{branch.manager || "Not assigned"}</p></div>
+      <div className="branch-card-meta min-w-0 px-4 py-3 sm:px-5"><p className="branch-card-meta-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Team</p><p className="branch-card-meta-value mt-1 text-xs font-medium text-slate-700 sm:text-sm">{branch.staffCount || 0} staff</p></div>
+    </div>
+    {onOpen ? <div className="branch-card-action flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-600 sm:px-5 sm:text-sm"><span>{recentBranchId === branch.id ? "Recently opened" : "Open workspace"}</span><span className="text-base leading-none text-slate-400">→</span></div> : null}
+  </>;
+
+  if (onOpen) return <button type="button" onClick={() => onOpen(branch.id)} className="branch-selection-card block w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300">{content}</button>;
+  return <div className="branch-selection-card overflow-hidden rounded-xl border border-slate-200 bg-white">{content}</div>;
 }
 
 export function BranchSelectionPage() {
@@ -1179,14 +1172,14 @@ export function BranchSelectionPage() {
       <TopBar session={session} title="Branch selection" subtitle="Choose your workspace" branches={branches} onMenu={() => {}} hideMenu />
       <main className="branch-selection-workspace px-4 py-6 lg:px-6">
       <div className="mx-auto max-w-7xl space-y-4">
-        <header className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 p-6 text-white">
+        <header className="overflow-hidden rounded-xl border border-slate-700 bg-slate-800 p-6 text-white">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Business home</p>
               <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Select a branch</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-300">Choose a branch to open daily operations, or use business settings to create your first one.</p>
             </div>
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-700 bg-slate-800 text-slate-100"><Store size={21} /></span>
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-600 bg-slate-700 text-slate-100"><Store size={21} /></span>
           </div>
         </header>
         {(() => {
@@ -1209,7 +1202,7 @@ export function BranchSelectionPage() {
                     <p className="mt-1 text-sm text-slate-500">Manage branches, service items, item groups, and delivery time slots in one place.</p>
                   </div>
                 </div>
-                <Link href={settingsHref}><Button variant="secondary"><Settings size={16} /> Manage settings</Button></Link>
+                <Link href={settingsHref}><Button className="focus:ring-0"><Settings size={16} /> Manage settings</Button></Link>
               </section>
             ) : null}
             {branches.length ? (
@@ -1877,6 +1870,7 @@ export function CustomersPage() {
             setCustomers((current) => customerId ? current.map((customer) => customer.id === saved.id ? saved : customer) : [...current, saved]);
             setEditingCustomer(null);
             setNotice(customerId ? `${saved.name} updated.` : `${saved.name} created.`);
+            showSuccessToast(customerId ? "Customer changes saved." : "Customer created.");
           } catch (issue) {
             setError(getApiErrorMessage(issue, "Unable to update customer."));
             throw issue;
@@ -1888,6 +1882,7 @@ export function CustomersPage() {
             await deleteCustomer(customer.id);
             setCustomers((current) => current.filter((item) => item.id !== customer.id));
             setNotice(`${customer.name} removed.`);
+            showSuccessToast("Customer deleted.");
           } catch (issue) {
             setError(getApiErrorMessage(issue, "Unable to remove customer."));
           }
@@ -2043,6 +2038,7 @@ export function SettingsBranchManagementPage({ initialCreate = false }) {
     const savedBranches = branches.map((branch) => branch.id === branchId ? updated : branch);
     await saveBranches(savedBranches);
     setBranches(savedBranches);
+    showSuccessToast(`Branch ${updated.status === "Active" ? "activated" : "deactivated"}.`);
   }
 
   async function persistBranchEdits(payload) {
@@ -2051,6 +2047,7 @@ export function SettingsBranchManagementPage({ initialCreate = false }) {
     await saveBranches(nextBranches);
     setBranches(nextBranches);
     setEditingBranch(null);
+    showSuccessToast("Branch changes saved.");
   }
 
   async function saveBranchEdits(payload) {
@@ -2068,6 +2065,7 @@ export function SettingsBranchManagementPage({ initialCreate = false }) {
     const nextBranches = branches.filter((item) => item.id !== branch.id);
     await saveBranches(nextBranches);
     setBranches(nextBranches);
+    showSuccessToast("Branch deleted.");
   }
 
   async function saveNewBranch(payload, business) {
@@ -2076,6 +2074,7 @@ export function SettingsBranchManagementPage({ initialCreate = false }) {
     await saveBranches(nextBranches);
     setBranches(nextBranches);
     setCreatingBranch(false);
+    showSuccessToast("Branch created.");
   }
 
   return (
@@ -2212,6 +2211,7 @@ export function SettingsItemGroupsPage() {
     await saveItemGroups(nextGroups);
     setGroups(nextGroups);
     setGroupEditor(null);
+    showSuccessToast(form.id ? "Item group changes saved." : "Item group created.");
   }
 
   async function toggleGroup(group) {
@@ -2220,6 +2220,7 @@ export function SettingsItemGroupsPage() {
     const nextGroups = groups.map((current) => current.id === updated.id ? updated : current);
     await saveItemGroups(nextGroups);
     setGroups(nextGroups);
+    showSuccessToast(`Item group ${status === "Active" ? "activated" : "deactivated"}.`);
   }
 
   async function removeGroup(group) {
@@ -2227,6 +2228,7 @@ export function SettingsItemGroupsPage() {
     const nextGroups = groups.filter((current) => current.id !== group.id);
     await saveItemGroups(nextGroups);
     setGroups(nextGroups);
+    showSuccessToast("Item group deleted.");
   }
 
   return (
@@ -2279,6 +2281,7 @@ export function SettingsItemsPage() {
     await saveServiceItems(nextItems);
     setItems(nextItems);
     setItemEditor(null);
+    showSuccessToast(form.id ? "Item changes saved." : "Item created.");
   }
 
   async function toggleItem(item) {
@@ -2286,6 +2289,7 @@ export function SettingsItemsPage() {
     const nextItems = items.map((current) => current.id === updated.id ? updated : current);
     await saveServiceItems(nextItems);
     setItems(nextItems);
+    showSuccessToast(`Item ${updated.status === "Active" ? "activated" : "deactivated"}.`);
   }
 
   async function removeItem(item) {
@@ -2293,6 +2297,7 @@ export function SettingsItemsPage() {
     const nextItems = items.filter((current) => current.id !== item.id);
     await saveServiceItems(nextItems);
     setItems(nextItems);
+    showSuccessToast("Item deleted.");
   }
 
   return (
@@ -2344,6 +2349,7 @@ export function SettingsTimeSlotsPage() {
     await saveTimeSlots(nextSlots);
     setSlots(nextSlots);
     setSlotEditor(null);
+    showSuccessToast(form.id ? "Time slot changes saved." : "Time slot created.");
   }
 
   async function toggleSlot(slot) {
@@ -2351,6 +2357,7 @@ export function SettingsTimeSlotsPage() {
     const nextSlots = slots.map((current) => current.id === updated.id ? updated : current);
     await saveTimeSlots(nextSlots);
     setSlots(nextSlots);
+    showSuccessToast(`Time slot ${updated.status === "Active" ? "activated" : "deactivated"}.`);
   }
 
   async function removeSlot(slot) {
@@ -2358,6 +2365,7 @@ export function SettingsTimeSlotsPage() {
     const nextSlots = slots.filter((current) => current.id !== slot.id);
     await saveTimeSlots(nextSlots);
     setSlots(nextSlots);
+    showSuccessToast("Time slot deleted.");
   }
 
   return (
