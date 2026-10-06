@@ -84,13 +84,13 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [notice, setNotice] = useState("");
     const [reload, setReload] = useState(0);
     const [target, setTarget] = useState(null);
     const [billTarget, setBillTarget] = useState(null);
     const [labelTarget, setLabelTarget] = useState(null);
     const [receiptTarget, setReceiptTarget] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deliveryTarget, setDeliveryTarget] = useState(null);
     useEffect(() => {
         let active = true;
         listOrders(branchId).then((rows) => { if (active) {
@@ -107,9 +107,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
             return;
         const saved = await updateOrder(target.order.id, values);
         setOrders((rows) => rows.map((order) => order.id === saved.id ? saved : order));
-        setNotice(`${saved.orderNumber} ${saved.status === "Processing" && target.action === "process" ? "moved to Under Processing" : saved.status === "Cancelled" ? "moved to Cancelled" : "updated"}.`);
-        if (target.action === "edit")
-            showSuccessToast("Order changes saved.");
+        showSuccessToast(`${saved.orderNumber} ${saved.status === "Processing" && target.action === "process" ? "moved to Under Processing" : saved.status === "Cancelled" ? "moved to Cancelled" : "updated"}.`);
         setTarget(null);
     }
     async function confirmDelete() {
@@ -117,7 +115,6 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
             return;
         await deleteOrder(deleteTarget.id);
         setOrders((rows) => rows.filter((order) => order.id !== deleteTarget.id));
-        setNotice(`${deleteTarget.orderNumber} removed from the list.`);
         showSuccessToast("Order deleted.");
         setDeleteTarget(null);
     }
@@ -127,19 +124,27 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
         const saved = await createReceipt(receiptTarget.id, values);
         setOrders((rows) => rows.map((order) => order.id === saved.id ? saved : order));
         setReceiptTarget(null);
-        setNotice(`Payment recorded for ${saved.orderNumber}.`);
+        showSuccessToast(`Payment recorded for ${saved.orderNumber}.`);
     }
     async function moveToDelivery(order) {
+        const saved = await updateOrder(order.id, { status: "Pending Delivery" });
+        setOrders((rows) => rows.map((current) => current.id === saved.id ? saved : current));
+        showSuccessToast(`${saved.orderNumber} moved to Delivery → Pending.`);
+    }
+    async function confirmMoveToDelivery() {
+        if (!deliveryTarget)
+            return;
         try {
-            const saved = await updateOrder(order.id, { status: "Pending Delivery" });
-            setOrders((rows) => rows.map((current) => current.id === saved.id ? saved : current));
-            setNotice(`${saved.orderNumber} moved to Delivery → Pending.`);
+            await moveToDelivery(deliveryTarget);
         }
         catch (issue) {
             setError(errorMessage(issue));
         }
+        finally {
+            setDeliveryTarget(null);
+        }
     }
-    function actions(order) { return <Actions order={order} onAction={(action) => action === "delete" ? setDeleteTarget(order) : setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => moveToDelivery(order)} permissions={permissions} deliveryPermissions={deliveryPermissions}/>; }
+    function actions(order) { return <Actions order={order} onAction={(action) => action === "delete" ? setDeleteTarget(order) : setTarget({ order, action })} onBill={() => setBillTarget(order)} onLabels={() => setLabelTarget(order)} onReceipt={() => setReceiptTarget(order)} onMoveToDelivery={() => setDeliveryTarget(order)} permissions={permissions} deliveryPermissions={deliveryPermissions}/>; }
     return <div className="order-workspace space-y-4 text-slate-900">
     <section className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -158,7 +163,6 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
             setTab(tabs[next]);
             (_a = document.getElementById(`orders-tab-${next}`)) === null || _a === void 0 ? void 0 : _a.focus();
         }}>{tabs.map((label, index) => <button type="button" role="tab" key={label} id={`orders-tab-${index}`} aria-selected={tab === label} aria-controls="orders-panel" tabIndex={tab === label ? 0 : -1} onClick={() => setTab(label)} style={tab === label ? { borderBottomColor: "var(--theme-active-indicator)" } : undefined} className={`-mb-px inline-flex min-w-0 items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-xs font-semibold transition-colors focus:outline-none sm:px-4 sm:text-sm ${tab === label ? "text-slate-900" : "text-slate-500 hover:text-slate-900"}`}>{label}<span className={`ml-1 text-[11px] tabular-nums sm:ml-2 sm:text-xs ${tab === label ? "text-slate-600" : "text-slate-400"}`}>{orders.filter((order) => matches(order, label)).length}</span></button>)}</div>
-    {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p>}
     {error && <div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error} <button className="ml-2 underline" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Retry</button></div>}
     <div id="orders-panel" role="tabpanel" aria-labelledby={`orders-tab-${tabs.indexOf(tab)}`} aria-busy={loading} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3"><h2 className="text-xs font-semibold text-slate-900">{tab === "Under Processing" ? "In progress" : `${tab} orders`}</h2><span className="text-xs tabular-nums text-slate-500">{loading ? "Updating" : `${visible.length} ${visible.length === 1 ? "order" : "orders"}${query ? " found" : ""}`}</span></div>
@@ -180,6 +184,7 @@ export default function OrdersWorkspace({ branchId, permissions, deliveryPermiss
     {labelTarget && <LabelPrintDialog order={labelTarget} onClose={() => setLabelTarget(null)}/>}
     {receiptTarget && <ReceiptDialog order={receiptTarget} onClose={() => setReceiptTarget(null)} onSave={saveReceipt}/>}
     {deleteTarget && <ConfirmationModal title="Delete order?" body={`${deleteTarget.orderNumber} will be removed from the order list.`} confirmLabel="Delete order" danger onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete}/>}
+    {deliveryTarget && <ConfirmationModal title="Move order to delivery?" body={`${deliveryTarget.orderNumber} will move to Delivery → Pending.`} confirmLabel="Move to delivery" onCancel={() => setDeliveryTarget(null)} onConfirm={confirmMoveToDelivery}/>}
   </div>;
 }
 function Payment({ order }) {
