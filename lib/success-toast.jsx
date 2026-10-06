@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, X } from "lucide-react";
 
 const EVENT_NAME = "laundryos:success-toast";
+const STORAGE_KEY = "laundryos:success-toast";
+const TOAST_DURATION = 4000;
 
 export function showSuccessToast(message) {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: message }));
+  if (typeof window === "undefined") return;
+  const toast = { message, expiresAt: Date.now() + TOAST_DURATION };
+  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toast));
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: toast }));
 }
 
 export function SuccessToastRegion() {
@@ -14,14 +19,30 @@ export function SuccessToastRegion() {
 
   useEffect(() => {
     let timeout;
-    function show(event) {
-      setMessage(event.detail);
-      window.clearTimeout(timeout);
-      timeout = window.setTimeout(() => setMessage(""), 4000);
+    function clearStoredToast() {
+      const stored = window.sessionStorage.getItem(STORAGE_KEY);
+      if (stored) window.sessionStorage.removeItem(STORAGE_KEY);
     }
-    window.addEventListener(EVENT_NAME, show);
+    function show(toast) {
+      if (!toast?.message || toast.expiresAt <= Date.now()) {
+        clearStoredToast();
+        return;
+      }
+      setMessage(toast.message);
+      window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => {
+        setMessage("");
+        clearStoredToast();
+      }, Math.max(0, toast.expiresAt - Date.now()));
+    }
+    function handleToast(event) { show(event.detail); }
+    const stored = window.sessionStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try { show(JSON.parse(stored)); } catch { clearStoredToast(); }
+    }
+    window.addEventListener(EVENT_NAME, handleToast);
     return () => {
-      window.removeEventListener(EVENT_NAME, show);
+      window.removeEventListener(EVENT_NAME, handleToast);
       window.clearTimeout(timeout);
     };
   }, []);

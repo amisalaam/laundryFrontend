@@ -1661,7 +1661,10 @@ export function CreateOrderPage() {
     if (editingOrderId) {
       await updateOrderRequest(editingOrderId, values);
       showSuccessToast("Order changes saved.");
-    } else await createOrder(values);
+    } else {
+      await createOrder(values);
+      showSuccessToast("Order created.");
+    }
     router.push(`/branch/${branch.id}/orders`);
   }
 

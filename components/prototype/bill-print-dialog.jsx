@@ -1,56 +1,25 @@
 "use client";
-
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { ModalDialog, ModalFooter, ModalHeader } from "@/components/common/modal";
 import "./order-modal-theme.css";
-
-type Item = {
-  rowId: string;
-  itemName: string;
-  shortCode?: string;
-  quantity: number;
-  unitPrice: number;
-  itemTotal: number;
-};
-
-type Order = {
-  orderNumber: string;
-  customerName: string;
-  customerPhone?: string;
-  customerEmail?: string;
-  customerAddress?: string;
-  deliveryDate: string;
-  deliveryTimeSlot: string;
-  createdAt?: string;
-  subTotal: number;
-  discount: number;
-  grandTotal: number;
-  paidAmount: number;
-  items: Item[];
-};
-
-const formatMoney = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
-
-export default function BillPrintDialog({ order, onClose }: { order: Order; onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const balance = Math.max(0, Number(order.grandTotal || 0) - Number(order.paidAmount || 0));
-
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
-
-  function printBill() {
-    dialog.current?.close();
-    window.print();
-    dialog.current?.showModal();
-  }
-
-  return createPortal(
-    <div id="laundry-bill-print-root">
+const formatMoney = (value) => `₹${Number(value || 0).toFixed(2)}`;
+export default function BillPrintDialog({ order, onClose }) {
+    const dialog = useRef(null);
+    const balance = Math.max(0, Number(order.grandTotal || 0) - Number(order.paidAmount || 0));
+    useEffect(() => {
+        const element = dialog.current;
+        element === null || element === void 0 ? void 0 : element.showModal();
+        return () => element === null || element === void 0 ? void 0 : element.close();
+    }, []);
+    function printBill() {
+        var _a, _b;
+        (_a = dialog.current) === null || _a === void 0 ? void 0 : _a.close();
+        window.print();
+        (_b = dialog.current) === null || _b === void 0 ? void 0 : _b.showModal();
+    }
+    return createPortal(<div id="laundry-bill-print-root">
       <style>{`
         #laundry-bill-print-root .bill-output { display: none; }
         @media print {
@@ -65,22 +34,18 @@ export default function BillPrintDialog({ order, onClose }: { order: Order; onCl
         }
       `}</style>
       <ModalDialog ref={dialog} onCancel={onClose} aria-label="Print bill" className="h-[calc(100dvh-1.5rem)] max-h-[90dvh] !overflow-y-auto overscroll-contain !p-0 sm:h-auto">
-        <ModalHeader title="Print bill" subtitle={order.orderNumber} onClose={onClose} closeLabel="Close print bill" />
-        <Bill order={order} balance={balance} className="p-6" />
+        <ModalHeader title="Print bill" subtitle={order.orderNumber} onClose={onClose} closeLabel="Close print bill"/>
+        <Bill order={order} balance={balance} className="p-6"/>
         <ModalFooter className="items-center gap-3 sm:flex-row sm:justify-end">
-          <button type="button" onClick={printBill} className="modal-primary inline-flex items-center gap-2 px-4 font-semibold"><Printer size={16} /> Print</button>
+          <button type="button" onClick={printBill} className="modal-primary inline-flex items-center gap-2 px-4 font-semibold"><Printer size={16}/> Print</button>
           <button type="button" onClick={onClose} className="modal-secondary px-4 font-semibold">Cancel</button>
         </ModalFooter>
       </ModalDialog>
-      <Bill order={order} balance={balance} className="bill-output" />
-    </div>,
-    document.body,
-  );
+      <Bill order={order} balance={balance} className="bill-output"/>
+    </div>, document.body);
 }
-
-function Bill({ order, balance, className }: { order: Order; balance: number; className: string }) {
-  return (
-    <article className={className}>
+function Bill({ order, balance, className }) {
+    return (<article className={className}>
       <header className="flex justify-between gap-6 border-b border-zinc-200 pb-5">
         <div><h1 className="text-2xl font-black">LaundryOS</h1><p className="mt-1 text-sm text-zinc-500">Laundry service bill</p></div>
         <div className="text-right text-sm"><p className="font-bold">Invoice {order.orderNumber}</p><p>Created: {order.createdAt || order.deliveryDate}</p><p>Delivery: {order.deliveryDate} · {order.deliveryTimeSlot}</p></div>
@@ -98,6 +63,5 @@ function Bill({ order, balance, className }: { order: Order; balance: number; cl
         <p className="flex justify-between"><span>Discount</span><span>{formatMoney(order.discount)}</span></p>
         <p className="flex justify-between border-t border-zinc-300 pt-2 text-base font-black"><span>Grand total</span><span>{formatMoney(order.grandTotal)}</span></p>
       </section>
-    </article>
-  );
+    </article>);
 }

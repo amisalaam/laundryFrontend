@@ -1,38 +1,30 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { ModalDialog, ModalFooter, ModalHeader } from "@/components/common/modal";
 import "./order-modal-theme.css";
-
-type Item = { rowId: string; itemName: string; shortCode?: string; quantity: number; itemCount?: number; unitType?: string };
-type Order = { orderNumber: string; customerName: string; createdAt?: string; totalItemQuantity: number; items: Item[] };
-
-export default function LabelPrintDialog({ order, onClose }: { order: Order; onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [copies, setCopies] = useState(() => order.items.map(item => String(item.itemCount ?? Math.ceil(Number(item.quantity)))));
-  const counts = copies.map(Number);
-  const valid = copies.every((value, index) => value.trim() !== "" && Number.isSafeInteger(counts[index]) && counts[index] >= 0 && counts[index] <= 500);
-  const total = counts.reduce((sum, count) => sum + count, 0);
-  const canPrint = valid && total > 0 && total <= 1000;
-  const date = order.createdAt ? new Date(`${order.createdAt.slice(0, 10)}T12:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : "";
-
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
-
-  function printLabels() {
-    // Close the native dialog before printing so its top layer cannot obscure labels.
-    dialog.current?.close();
-    window.print();
-    dialog.current?.showModal();
-  }
-
-  return createPortal(
-    <div id="laundry-label-print-root">
+export default function LabelPrintDialog({ order, onClose }) {
+    const dialog = useRef(null);
+    const [copies, setCopies] = useState(() => order.items.map(item => { var _a; return String((_a = item.itemCount) !== null && _a !== void 0 ? _a : Math.ceil(Number(item.quantity))); }));
+    const counts = copies.map(Number);
+    const valid = copies.every((value, index) => value.trim() !== "" && Number.isSafeInteger(counts[index]) && counts[index] >= 0 && counts[index] <= 500);
+    const total = counts.reduce((sum, count) => sum + count, 0);
+    const canPrint = valid && total > 0 && total <= 1000;
+    const date = order.createdAt ? new Date(`${order.createdAt.slice(0, 10)}T12:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : "";
+    useEffect(() => {
+        const element = dialog.current;
+        element === null || element === void 0 ? void 0 : element.showModal();
+        return () => element === null || element === void 0 ? void 0 : element.close();
+    }, []);
+    function printLabels() {
+        var _a, _b;
+        // Close the native dialog before printing so its top layer cannot obscure labels.
+        (_a = dialog.current) === null || _a === void 0 ? void 0 : _a.close();
+        window.print();
+        (_b = dialog.current) === null || _b === void 0 ? void 0 : _b.showModal();
+    }
+    return createPortal(<div id="laundry-label-print-root">
       <style>{`
         #laundry-label-print-root .label-output { display: none; }
         @media print {
@@ -47,7 +39,7 @@ export default function LabelPrintDialog({ order, onClose }: { order: Order; onC
         }
       `}</style>
       <ModalDialog ref={dialog} onCancel={onClose} aria-label="Print label" className="max-h-[90vh] overflow-auto">
-        <ModalHeader title="Print label" subtitle={`${order.orderNumber} · ${order.customerName}`} onClose={onClose} closeLabel="Close print labels" />
+        <ModalHeader title="Print label" subtitle={`${order.orderNumber} · ${order.customerName}`} onClose={onClose} closeLabel="Close print labels"/>
         <div className="p-5">
           <div className="overflow-x-auto">
             <table className="modal-table w-full min-w-[440px] text-left text-sm">
@@ -55,7 +47,7 @@ export default function LabelPrintDialog({ order, onClose }: { order: Order; onC
               <tbody>{order.items.map((item, index) => <tr key={item.rowId} className="border-b">
                 <td className="p-3">{index + 1}</td><td className="p-3 font-semibold">{item.itemName}{item.shortCode ? ` (${item.shortCode})` : ""}</td>
                 <td className="whitespace-nowrap p-3">{item.quantity} {item.unitType === "Kilogram" ? "kg" : "pcs"}</td>
-                <td className="p-3"><input autoFocus={index === 0} aria-label={`Copies for ${item.itemName}, row ${index + 1}`} type="number" min="0" max="500" step="1" value={copies[index]} onChange={event => setCopies(current => current.map((value, row) => row === index ? event.target.value : value))} className="w-24 rounded border border-zinc-300 px-3 py-2 focus:outline-cyan-600" /></td>
+                <td className="p-3"><input autoFocus={index === 0} aria-label={`Copies for ${item.itemName}, row ${index + 1}`} type="number" min="0" max="500" step="1" value={copies[index]} onChange={event => setCopies(current => current.map((value, row) => row === index ? event.target.value : value))} className="w-24 rounded border border-zinc-300 px-3 py-2 focus:outline-cyan-600"/></td>
               </tr>)}</tbody>
             </table>
           </div>
@@ -64,18 +56,15 @@ export default function LabelPrintDialog({ order, onClose }: { order: Order; onC
         </div>
         <ModalFooter className="items-center gap-3 sm:flex-row sm:justify-end">
           <span className="mr-auto text-sm text-zinc-600">{valid ? total : 0} labels</span>
-          <button type="button" onClick={printLabels} disabled={!canPrint} className="modal-primary inline-flex items-center gap-2 px-4 font-semibold disabled:opacity-40"><Printer size={16} /> Print</button>
+          <button type="button" onClick={printLabels} disabled={!canPrint} className="modal-primary inline-flex items-center gap-2 px-4 font-semibold disabled:opacity-40"><Printer size={16}/> Print</button>
           <button type="button" onClick={onClose} className="modal-secondary px-4 font-semibold">Cancel</button>
         </ModalFooter>
       </ModalDialog>
-      <div className="label-output" aria-hidden="true">{canPrint && order.items.flatMap((item, index) => Array.from({ length: counts[index] }, (_, copy) => (
-        <article key={`${item.rowId}-${copy}`} className="garment-label">
+      <div className="label-output" aria-hidden="true">{canPrint && order.items.flatMap((item, index) => Array.from({ length: counts[index] }, (_, copy) => (<article key={`${item.rowId}-${copy}`} className="garment-label">
           <p>{order.customerName}</p><p>#{order.orderNumber}</p>{date && <p>{date}</p>}
           {item.shortCode && <p><span className="service-code">{item.shortCode}</span></p>}
           <p>{item.itemName}{item.shortCode ? ` (${item.shortCode})` : ""}</p>
           <p>TQ {order.totalItemQuantity}</p><p>IQ {Number(item.quantity).toFixed(2)}</p>
-        </article>
-      )))}</div>
-    </div>, document.body,
-  );
+        </article>)))}</div>
+    </div>, document.body);
 }
